@@ -80,6 +80,7 @@ import { layoutGitGraph } from './gitgraph/layout.ts'
 import { renderGitGraphSvg } from './gitgraph/renderer.ts'
 import { parseFrontmatter } from './frontmatter/parser.ts'
 import type { FrontmatterColors } from './frontmatter/types.ts'
+import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
 
 /**
  * Detect the diagram type from the mermaid source text.
@@ -164,9 +165,32 @@ export function renderMermaidSVG(
   const meta = parseFrontmatter(text)
   text = meta.body
 
+  // Lift accTitle/accDescr out next. Every diagram type accepts them, so they
+  // are handled here and spliced into the finished SVG as <title>/<desc>,
+  // which keeps all fourteen parsers free of a11y concerns.
+  const a11y = parseAccessibility(text)
+  text = a11y.body
+
+  return withAccessibility(renderDiagramBody(text, options, meta.title, meta.colors), a11y)
+}
+
+/**
+ * Render a diagram body whose metadata has already been stripped.
+ *
+ * Split out from renderMermaidSVG so the metadata handling above reads as a
+ * short pipeline rather than being buried on top of a fourteen-arm switch.
+ */
+function renderDiagramBody(
+  text: string,
+  options: RenderOptions,
+  metaTitle: string | undefined,
+  metaColors: FrontmatterColors,
+): string {
+  const meta = { title: metaTitle }
+
   // Explicit RenderOptions win over in-diagram metadata: the host page knows
   // its own theme, the diagram author only guessed at it.
-  const colors = buildColors(options, meta.colors)
+  const colors = buildColors(options, metaColors)
   const font = options.font ?? 'Inter'
   const transparent = options.transparent ?? false
   const diagramType = detectDiagramType(text)
