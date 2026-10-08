@@ -11,6 +11,7 @@
 //   - Class diagrams (classDiagram)
 //   - ER diagrams (erDiagram)
 //   - Gantt charts (gantt)
+//   - Timelines (timeline)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -50,16 +51,20 @@ import { renderXYChartSvg } from './xychart/renderer.ts'
 import { parseGanttDiagram } from './gantt/parser.ts'
 import { layoutGantt } from './gantt/layout.ts'
 import { renderGanttSvg } from './gantt/renderer.ts'
+import { parseTimelineDiagram } from './timeline/parser.ts'
+import { layoutTimeline } from './timeline/layout.ts'
+import { renderTimelineSvg } from './timeline/renderer.ts'
 
 /**
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
   if (/^gantt\b/.test(firstLine)) return 'gantt'
+  if (/^timeline\b/.test(firstLine)) return 'timeline'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -153,6 +158,11 @@ export function renderMermaidSVG(
       const diagram = parseGanttDiagram(lines)
       const positioned = layoutGantt(diagram, options)
       return renderGanttSvg(positioned, colors, font, transparent)
+    }
+    case 'timeline': {
+      const diagram = parseTimelineDiagram(lines)
+      const positioned = layoutTimeline(diagram, options)
+      return renderTimelineSvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {
