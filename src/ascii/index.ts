@@ -60,7 +60,7 @@ export interface AsciiRenderOptions {
  * Detect the diagram type from the mermaid source text.
  * Mirrors the detection logic in src/index.ts for the SVG renderer.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' {
   const firstLine = text.trim().split('\n')[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -68,6 +68,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^timeline\b/.test(firstLine)) return 'timeline'
   if (/^pie\b/.test(firstLine)) return 'pie'
   if (/^journey\b/.test(firstLine)) return 'journey'
+  if (/^quadrantchart\b/.test(firstLine)) return 'quadrant'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -137,14 +138,15 @@ export function renderMermaidASCII(
     case 'er':
       return renderErAscii(text, config, colorMode, theme)
 
-    // Gantt, timeline, pie and journey are SVG-only: their value is
-    // proportional geometry (a time axis, an angle, a score curve), which a
+    // These types are SVG-only: their value is proportional geometry (a time
+    // axis, an angle, a score curve, a position in the unit square), which a
     // character grid cannot carry honestly. Fail with a clear message instead
     // of letting the flowchart parser report a bad header.
     case 'gantt':
     case 'timeline':
     case 'pie':
     case 'journey':
+    case 'quadrant':
       throw new Error(
         `ASCII rendering is not supported for ${diagramType} diagrams. ` +
         `Use renderMermaidSVG() instead.`

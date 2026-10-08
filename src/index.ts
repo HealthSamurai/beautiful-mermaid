@@ -14,6 +14,7 @@
 //   - Timelines (timeline)
 //   - Pie charts (pie)
 //   - User journeys (journey)
+//   - Quadrant charts (quadrantChart)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -62,12 +63,15 @@ import { renderPieSvg } from './pie/renderer.ts'
 import { parseJourneyDiagram } from './journey/parser.ts'
 import { layoutJourney } from './journey/layout.ts'
 import { renderJourneySvg } from './journey/renderer.ts'
+import { parseQuadrantDiagram } from './quadrant/parser.ts'
+import { layoutQuadrant } from './quadrant/layout.ts'
+import { renderQuadrantSvg } from './quadrant/renderer.ts'
 
 /**
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -75,6 +79,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^timeline\b/.test(firstLine)) return 'timeline'
   if (/^pie\b/.test(firstLine)) return 'pie'
   if (/^journey\b/.test(firstLine)) return 'journey'
+  if (/^quadrantchart\b/.test(firstLine)) return 'quadrant'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -183,6 +188,11 @@ export function renderMermaidSVG(
       const diagram = parseJourneyDiagram(lines)
       const positioned = layoutJourney(diagram, options)
       return renderJourneySvg(positioned, colors, font, transparent)
+    }
+    case 'quadrant': {
+      const diagram = parseQuadrantDiagram(lines)
+      const positioned = layoutQuadrant(diagram, options)
+      return renderQuadrantSvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {
