@@ -37,7 +37,7 @@ The ASCII rendering engine is based on [mermaid-ascii](https://github.com/Alexan
 
 ## Features
 
-- **16 diagram types** — Flowcharts, State, Sequence, Class, ER, XY Charts (bar, line, combined), Gantt, Timeline, Pie, User Journey, Quadrant, Mindmap, Sankey, Git Graph, Block, and Radar
+- **20 diagram types** — Flowcharts, State, Sequence, Class, ER, XY Charts (bar, line, combined), Gantt, Timeline, Pie, User Journey, Quadrant, Mindmap, Sankey, Git Graph, Block, Radar, Kanban, Treemap, Requirement, and C4
 - **Frontmatter & init directives** — YAML frontmatter and `%%{init: ...}%%` are parsed for titles, theme colors and per-diagram config
 - **Accessible output** — `accTitle` / `accDescr` become the SVG `<title>` and `<desc>`
 - **Dual output** — SVG for rich UIs, ASCII/Unicode for terminals
@@ -744,11 +744,131 @@ The first declared axis points straight up and the rest are spread evenly, which
 
 ---
 
+### Kanban Boards
+
+Columns of cards — using Mermaid's `kanban` syntax.
+
+```
+kanban
+  todo[Todo]
+    t1[Write the parser]@{ assigned: nikolai, ticket: KBN-1, priority: High }
+    t2[Write the tests]
+  doing[In progress]
+    d1[Design the grammar]@{ priority: Very High }
+  done[Done]
+    x1[Ship the radar chart]
+```
+
+- **Indentation** is the structure: the outermost level is the columns, anything deeper is a card. Deeper levels are not distinguished further — a board has no third dimension to show them in
+- **Ids** — `todo[Todo]` names a column, `t1[Write the parser]` a card; without brackets the text is both id and label
+- **Metadata** — a trailing `@{ assigned: …, ticket: …, priority: …, icon: …, label: … }` block, which may span several lines. `assigned` and `ticket` become chips under the card; `priority` (`Very High` … `Very Low`) becomes a coloured stripe down its left edge
+- `title` — board heading
+- `::icon(name)` and `:::class1 class2` — decorate the node above them
+- `style <id> fill:#eee,stroke:#333` — inline CSS for one column or card
+- `config.kanban.showIds: true` in frontmatter — show each card's id as a chip
+
+Column width is fixed rather than fitted to content: a board is a comparison between columns, and a wide "Done" beside a narrow "Todo" would suggest the work there is bigger. Labels wrap instead, and every column is given the tallest one's height so they share a bottom edge.
+
+---
+
+### Treemaps
+
+Nested proportions — using Mermaid's `treemap-beta` syntax.
+
+```
+treemap-beta
+title Budget 2024
+"Engineering"
+    "Payroll": 4200
+    "Cloud": 900
+    "Licences": 260
+"Marketing"
+    "Advertising": 1500
+    "Events": 480
+```
+
+- **Indentation** carries the hierarchy; the step size does not matter
+- `"Name": value` — a leaf. Quotes are optional but let a name contain a colon; thousands separators are accepted
+- `"Name"` — a section, whose value is the **sum of its descendants**. A declared value on a section is ignored, because a parent disagreeing with its children would make the picture lie about the proportions it draws
+- `:::className` with `classDef className fill:#f9f,stroke:#333` — per-cell styling
+- `config.treemap.showValues: false` and `valueFormat: $0,0` in frontmatter
+
+The layout is **squarified** (Bruls, Huizing and van Wijk) rather than slice-and-dice: the whole claim a treemap makes is that area is comparable by eye, and slice-and-dice answers a skewed input with 400:1 slivers that are neither comparable nor labellable. Colour says which top-level branch a cell belongs to and tint says how deep it is, so the two readings do not compete.
+
+---
+
+### Requirement Diagrams
+
+SysML requirements and the elements that satisfy them — using Mermaid's `requirementDiagram` syntax.
+
+```
+requirementDiagram
+direction LR
+
+requirement test_req {
+    id: 1
+    text: the test text
+    risk: high
+    verifyMethod: test
+}
+
+element test_entity {
+    type: simulation
+    docRef: none
+}
+
+test_entity - satisfies -> test_req
+```
+
+- **Types** — `requirement`, `functionalRequirement`, `interfaceRequirement`, `performanceRequirement`, `physicalRequirement`, `designConstraint`
+- **Requirement body** — `id`, `text`, `risk` (`low`/`medium`/`high`), `verifyMethod` (`analysis`/`demonstration`/`inspection`/`test`)
+- **Element body** — `type`, `docRef`
+- **Relationships** — `contains`, `copies`, `derives`, `satisfies`, `verifies`, `refines`, `traces`, written `a - satisfies -> b` or `a <- satisfies - b`. Both forms mean the same thing: the arrow points at the source, so reading left to right still gives the right sentence
+- `direction TB | BT | LR | RL`, `classDef`, `class`, `:::className` and `style`
+
+Requirements and elements take different palette indices, so the two halves of a traceability picture — what is asked for and what provides it — are distinguishable at a glance. `contains` and `copies` draw solid because they assert a structural fact; the derived relationships draw dashed with an open arrowhead.
+
+---
+
+### C4 Diagrams
+
+Simon Brown's C4 model — using Mermaid's `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` syntax.
+
+```
+C4Context
+title System Context diagram for Internet Banking System
+
+Person(customerA, "Banking Customer A", "A customer of the bank")
+Person_Ext(customerB, "Banking Customer B")
+
+System_Boundary(b1, "BankBoundary") {
+  System(SystemAA, "Internet Banking System", "Lets customers view information")
+  SystemDb(SystemE, "Mainframe Database", "Stores core banking information")
+  SystemQueue(SystemF, "Event Bus", "Publishes banking events")
+}
+
+System_Ext(SystemC, "E-mail system", "The internal Exchange system")
+
+Rel(customerA, SystemAA, "Uses", "HTTPS")
+Rel(SystemAA, SystemC, "Sends e-mails", "SMTP")
+```
+
+- **Shapes** — `Person`, `System`, `SystemDb`, `SystemQueue`, `Container`, `ContainerDb`, `ContainerQueue`, `Component`, `ComponentDb`, `ComponentQueue`, each with an `_Ext` variant for anything outside the scope the diagram is about
+- **Boundaries** — `Boundary`, `Enterprise_Boundary`, `System_Boundary`, `Container_Boundary`, `Node` / `Node_L` / `Node_R` / `Deployment_Node`, opened with `{` and closed with `}`, nestable
+- **Relationships** — `Rel`, `BiRel`, and the directed `Rel_U` / `Rel_D` / `Rel_L` / `Rel_R` / `Rel_Back` (also spelled `Rel_Up`, `Rel_Down`, …), plus `RelIndex` for a numbered step in a dynamic diagram
+- **Arguments** are positional — `Shape(alias, "Label", "Technology", "Description")`, with the technology only where C4 has one — and from the fourth onward may instead be named: `$descr=`, `$techn=`, `$sprite=`, `$tags=`, `$link=`, in any order
+- `UpdateElementStyle(alias, $bgColor=…, $fontColor=…, $borderColor=…)` and `UpdateRelStyle(from, to, $textColor=…, $lineColor=…, $offsetX=…, $offsetY=…)`
+- `direction TB | BT | LR | RL`
+
+Boundaries are real containers, not rectangles drawn around whatever landed nearby — "this container is part of that system" is the claim a C4 diagram makes, so the nesting survives layout. Each tier takes a fixed palette index, so a container looks the same in every C4 diagram; external shapes drain to grey rather than take a colour of their own, because *outside our control* is an absence, not another category. A legend is drawn, since a colour difference with no key is only decoration.
+
+---
+
 ## ASCII Output
 
 For terminal environments, CLI tools, or anywhere you need plain text, render to ASCII or Unicode box-drawing characters:
 
-> Gantt, timeline, pie, journey, quadrant, mindmap, sankey, git graph, block and radar diagrams are SVG-only — their value is proportional geometry (a time axis, an angle, a score curve, a position in the unit square) that does not survive a character grid, so `renderMermaidASCII()` throws a clear error for them.
+> Gantt, timeline, pie, journey, quadrant, mindmap, sankey, git graph, block, radar, kanban, treemap, requirement and C4 diagrams are SVG-only — their value is proportional geometry (a time axis, an angle, a score curve, a position in the unit square) that does not survive a character grid, so `renderMermaidASCII()` throws a clear error for them.
 
 ```typescript
 import { renderMermaidASCII } from 'beautiful-mermaid'

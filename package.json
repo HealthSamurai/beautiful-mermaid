@@ -43,7 +43,11 @@
     "sankey",
     "gitgraph",
     "block-diagram",
-    "radar-chart"
+    "radar-chart",
+    "kanban",
+    "treemap",
+    "requirement-diagram",
+    "c4"
   ],
   "author": "Craft Docs",
   "files": [
