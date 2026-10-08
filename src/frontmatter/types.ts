@@ -27,6 +27,35 @@ export interface FrontmatterResult {
   title?: string
   /** Colour overrides translated from theme settings, when any were given */
   colors: FrontmatterColors
+  /** Per-diagram-type settings this library honours, when any were given */
+  config: FrontmatterConfig
+}
+
+/**
+ * Diagram configuration recognised in a frontmatter or init block.
+ *
+ * Mermaid's config tree has hundreds of keys; these are the ones with a
+ * visible effect in this renderer. Each is namespaced by the diagram type it
+ * belongs to, exactly as Mermaid nests them:
+ *
+ *   config:
+ *     pie:
+ *       textPosition: 0.6
+ *     timeline:
+ *       disableMulticolor: true
+ */
+export interface FrontmatterConfig {
+  pie?: {
+    /**
+     * Where percentage labels sit along the radius, 0 (centre) to 1 (edge).
+     * @default 0.75
+     */
+    textPosition?: number
+  }
+  timeline?: {
+    /** Draw every section in the theme accent instead of one colour each */
+    disableMulticolor?: boolean
+  }
 }
 
 /**

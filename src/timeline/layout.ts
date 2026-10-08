@@ -88,7 +88,11 @@ function layoutHorizontal(diagram: TimelineDiagram): PositionedTimeline {
   let x = T.padding
   let maxEventsBottom = eventsTop
 
-  sections.forEach((section, colorIndex) => {
+  // `config.timeline.disableMulticolor` collapses the per-section palette onto
+  // the single accent colour, for a chart that should read as one series
+  sections.forEach((section, sectionIndex) => {
+    const colorIndex = diagram.disableMulticolor ? 0 : sectionIndex
+
     const bandLeft = x
 
     for (const period of section.periods) {
@@ -195,7 +199,11 @@ function layoutVertical(diagram: TimelineDiagram): PositionedTimeline {
   let y = top
   let maxEventsRight = eventsLeft
 
-  sections.forEach((section, colorIndex) => {
+  // `config.timeline.disableMulticolor` collapses the per-section palette onto
+  // the single accent colour, for a chart that should read as one series
+  sections.forEach((section, sectionIndex) => {
+    const colorIndex = diagram.disableMulticolor ? 0 : sectionIndex
+
     const bandTop = y
     if (named && section.title) y += T.sectionHeight
 

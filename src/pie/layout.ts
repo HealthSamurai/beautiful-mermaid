@@ -71,7 +71,10 @@ export function layoutPie(diagram: PieDiagram, _options: RenderOptions = {}): Po
   const cx = P.padding + P.radius
   const cy = P.padding + titleHeight + contentHeight / 2
 
-  const positionedSlices = layoutSlices(slices, total, cx, cy)
+  const positionedSlices = layoutSlices(
+    slices, total, cx, cy,
+    diagram.textPosition ?? P.percentRadiusRatio,
+  )
   const legend = layoutLegend(
     legendTexts,
     P.padding + diameter + P.legendGap,
@@ -104,6 +107,7 @@ function layoutSlices(
   total: number,
   cx: number,
   cy: number,
+  textPosition: number,
 ): PositionedSlice[] {
   const out: PositionedSlice[] = []
   const drawn = slices.filter(s => total <= 0 || s.value > 0)
@@ -132,7 +136,9 @@ function layoutSlices(
       : wedgePath(cx, cy, P.radius, angle, angle + sweep)
 
     const mid = angle + sweep / 2
-    const labelRadius = P.radius * P.percentRadiusRatio
+    // `config.pie.textPosition` moves the percentage labels along the radius;
+    // the default keeps them inside the wedge where they read best
+    const labelRadius = P.radius * textPosition
     const percentLabel = sweep >= P.minLabelAngle
       ? {
           text: formatPercent(fraction),

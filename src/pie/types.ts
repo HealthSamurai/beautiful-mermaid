@@ -21,6 +21,13 @@ export interface PieDiagram {
   showData: boolean
   /** Slices in source order */
   slices: PieSlice[]
+  /**
+   * Where percentage labels sit along the radius, 0 (centre) to 1 (edge).
+   *
+   * Set from `config.pie.textPosition` in a frontmatter or init block; left
+   * undefined the layout uses its own default.
+   */
+  textPosition?: number
 }
 
 /** One labelled slice. */

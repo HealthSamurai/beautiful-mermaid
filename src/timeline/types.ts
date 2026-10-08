@@ -26,6 +26,14 @@ export interface TimelineDiagram {
   sections: TimelineSection[]
   /** All periods in source order, flattened across sections */
   periods: TimelinePeriod[]
+  /**
+   * When true, every section is drawn in the theme accent instead of taking
+   * its own colour from the palette.
+   *
+   * Set from `config.timeline.disableMulticolor` in a frontmatter or init
+   * block.
+   */
+  disableMulticolor?: boolean
 }
 
 /** A named group of periods, drawn as a band behind them. */

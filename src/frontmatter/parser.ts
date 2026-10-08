@@ -1,4 +1,4 @@
-import type { FrontmatterColors, FrontmatterResult } from './types.ts'
+import type { FrontmatterColors, FrontmatterConfig, FrontmatterResult } from './types.ts'
 
 // ============================================================================
 // Frontmatter and init-directive parser
@@ -70,6 +70,7 @@ const BUILTIN_THEMES: Record<string, FrontmatterColors> = {
  */
 export function parseFrontmatter(text: string): FrontmatterResult {
   const colors: FrontmatterColors = {}
+  const config: FrontmatterConfig = {}
   let title: string | undefined
   let body = text
 
@@ -79,6 +80,7 @@ export function parseFrontmatter(text: string): FrontmatterResult {
     const parsed = parseYamlBlock(fm[1]!)
     title = parsed.title
     Object.assign(colors, parsed.colors)
+    mergeConfig(config, parsed.config)
     body = body.slice(fm[0].length)
   }
 
@@ -92,14 +94,16 @@ export function parseFrontmatter(text: string): FrontmatterResult {
   })
 
   for (const payload of found) {
-    Object.assign(colors, parseInitPayload(payload))
+    const parsed = parseInitPayload(payload)
+    Object.assign(colors, parsed.colors)
+    mergeConfig(config, parsed.config)
   }
 
   // Leading blank lines left behind by a stripped directive would confuse
   // the header detection, so clear them
   body = body.replace(/^(?:[ \t]*\r?\n)+/, '')
 
-  return { body, title, colors }
+  return { body, title, colors, config }
 }
 
 // ---------------------------------------------------------------------------
@@ -110,8 +114,13 @@ export function parseFrontmatter(text: string): FrontmatterResult {
  * Parse the small YAML subset a mermaid frontmatter block uses: nested maps
  * of scalar values, indentation-delimited.
  */
-function parseYamlBlock(block: string): { title?: string; colors: FrontmatterColors } {
+function parseYamlBlock(block: string): {
+  title?: string
+  colors: FrontmatterColors
+  config: FrontmatterConfig
+} {
   const colors: FrontmatterColors = {}
+  const config: FrontmatterConfig = {}
   let title: string | undefined
 
   // Path of keys we are currently inside, by indentation
@@ -148,10 +157,10 @@ function parseYamlBlock(block: string): { title?: string; colors: FrontmatterCol
       continue
     }
 
-    applySetting(colors, scope, key, value)
+    applySetting(colors, config, scope, key, value)
   }
 
-  return { title, colors }
+  return { title, colors, config }
 }
 
 // ---------------------------------------------------------------------------
@@ -166,25 +175,38 @@ function parseYamlBlock(block: string): { title?: string; colors: FrontmatterCol
  * tracked only as far as needed to tell a themeVariables entry from a
  * top-level one.
  */
-function parseInitPayload(payload: string): FrontmatterColors {
+function parseInitPayload(payload: string): {
+  colors: FrontmatterColors
+  config: FrontmatterConfig
+} {
   const colors: FrontmatterColors = {}
+  const config: FrontmatterConfig = {}
 
   // themeVariables: { ... } — the inner block, if present
   const themeVars = payload.match(/['"]?themeVariables['"]?\s*:\s*\{([^{}]*)\}/i)
   if (themeVars) {
     for (const [, key, value] of pairs(themeVars[1]!)) {
-      applySetting(colors, ['themevariables'], key, value)
+      applySetting(colors, config, ['themevariables'], key, value)
     }
   }
 
   // Top-level settings, with the themeVariables block removed so its entries
   // are not read twice
-  const topLevel = themeVars ? payload.replace(themeVars[0], '') : payload
-  for (const [, key, value] of pairs(topLevel)) {
-    applySetting(colors, [], key, value)
+  // Per-diagram blocks: pie: { ... }, timeline: { ... }
+  for (const type of ['pie', 'timeline'] as const) {
+    const block = payload.match(new RegExp(`['"]?${type}['"]?\\s*:\\s*\\{([^{}]*)\\}`, 'i'))
+    if (!block) continue
+    for (const [, key, value] of pairs(block[1]!)) {
+      applySetting(colors, config, [type], key, value)
+    }
   }
 
-  return colors
+  const topLevel = themeVars ? payload.replace(themeVars[0], '') : payload
+  for (const [, key, value] of pairs(topLevel)) {
+    applySetting(colors, config, [], key, value)
+  }
+
+  return { colors, config }
 }
 
 /** Scan `key: value` pairs out of a JSON-ish fragment. */
@@ -214,6 +236,7 @@ function pairs(text: string): [string, string, string][] {
  */
 function applySetting(
   colors: FrontmatterColors,
+  config: FrontmatterConfig,
   scope: readonly string[],
   key: string,
   value: string,
@@ -232,10 +255,38 @@ function applySetting(
     return
   }
 
+  // Per-diagram settings, recognised only inside their own block so an
+  // unrelated key of the same name elsewhere is not picked up
+  if (!inThemeVariables) {
+    if (scope.includes('pie') && key === 'textposition') {
+      const position = Number(value)
+      // Outside 0..1 the labels would land off the wedge entirely
+      if (Number.isFinite(position) && position >= 0 && position <= 1) {
+        config.pie = { ...config.pie, textPosition: position }
+      }
+      return
+    }
+    if (scope.includes('timeline') && key === 'disablemulticolor') {
+      config.timeline = { ...config.timeline, disableMulticolor: isTrue(value) }
+      return
+    }
+  }
+
   const role = THEME_VARIABLE_MAP[key]
   if (role && isColorValue(value)) {
     colors[role] = value
   }
+}
+
+/** Merge a parsed config block over an accumulated one, one level deep. */
+function mergeConfig(target: FrontmatterConfig, source: FrontmatterConfig): void {
+  if (source.pie) target.pie = { ...target.pie, ...source.pie }
+  if (source.timeline) target.timeline = { ...target.timeline, ...source.timeline }
+}
+
+/** YAML-ish truthiness, so `true`, `yes` and `1` all read as enabled. */
+function isTrue(value: string): boolean {
+  return ['true', 'yes', '1', 'on'].includes(value.trim().toLowerCase())
 }
 
 /**

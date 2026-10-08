@@ -79,7 +79,7 @@ import { parseGitGraphDiagram } from './gitgraph/parser.ts'
 import { layoutGitGraph } from './gitgraph/layout.ts'
 import { renderGitGraphSvg } from './gitgraph/renderer.ts'
 import { parseFrontmatter } from './frontmatter/parser.ts'
-import type { FrontmatterColors } from './frontmatter/types.ts'
+import type { FrontmatterColors, FrontmatterConfig } from './frontmatter/types.ts'
 import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
 
 /**
@@ -171,7 +171,10 @@ export function renderMermaidSVG(
   const a11y = parseAccessibility(text)
   text = a11y.body
 
-  return withAccessibility(renderDiagramBody(text, options, meta.title, meta.colors), a11y)
+  return withAccessibility(
+    renderDiagramBody(text, options, meta.title, meta.colors, meta.config),
+    a11y,
+  )
 }
 
 /**
@@ -185,6 +188,7 @@ function renderDiagramBody(
   options: RenderOptions,
   metaTitle: string | undefined,
   metaColors: FrontmatterColors,
+  metaConfig: FrontmatterConfig,
 ): string {
   const meta = { title: metaTitle }
 
@@ -228,12 +232,14 @@ function renderDiagramBody(
     case 'timeline': {
       const diagram = parseTimelineDiagram(lines)
       diagram.title ??= meta.title
+      diagram.disableMulticolor ??= metaConfig.timeline?.disableMulticolor
       const positioned = layoutTimeline(diagram, options)
       return renderTimelineSvg(positioned, colors, font, transparent)
     }
     case 'pie': {
       const diagram = parsePieDiagram(lines)
       diagram.title ??= meta.title
+      diagram.textPosition ??= metaConfig.pie?.textPosition
       const positioned = layoutPie(diagram, options)
       return renderPieSvg(positioned, colors, font, transparent)
     }
