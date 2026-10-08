@@ -60,12 +60,13 @@ export interface AsciiRenderOptions {
  * Detect the diagram type from the mermaid source text.
  * Mirrors the detection logic in src/index.ts for the SVG renderer.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' {
   const firstLine = text.trim().split('\n')[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
   if (/^gantt\b/.test(firstLine)) return 'gantt'
   if (/^timeline\b/.test(firstLine)) return 'timeline'
+  if (/^pie\b/.test(firstLine)) return 'pie'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -135,11 +136,13 @@ export function renderMermaidASCII(
     case 'er':
       return renderErAscii(text, config, colorMode, theme)
 
-    // Gantt and timeline are SVG-only: their value is the proportional time
-    // axis, which a character grid cannot carry honestly. Fail with a clear
-    // message instead of letting the flowchart parser report a bad header.
+    // Gantt, timeline and pie are SVG-only: their value is proportional
+    // geometry (a time axis, an angle), which a character grid cannot carry
+    // honestly. Fail with a clear message instead of letting the flowchart
+    // parser report a bad header.
     case 'gantt':
     case 'timeline':
+    case 'pie':
       throw new Error(
         `ASCII rendering is not supported for ${diagramType} diagrams. ` +
         `Use renderMermaidSVG() instead.`
