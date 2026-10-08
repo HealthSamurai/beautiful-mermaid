@@ -1,12 +1,13 @@
 import type {
   GanttDiagram, GanttAxisTick, GanttGridLine, PositionedGantt,
-  PositionedGanttAxis, PositionedGanttBar, PositionedGanttSection, PositionedMilestone,
+  PositionedGanttAxis, PositionedGanttBar, PositionedGanttSection, PositionedGanttVertical,
+  PositionedMilestone,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
 import { estimateTextWidth } from '../styles.ts'
 import {
-  DAY_MS, addDuration, formatGanttDate,
-  startOfDay, startOfMonth, startOfQuarter, startOfWeek, startOfYear,
+  DAY_MS, addDuration, advanceTick, floorToTickUnit, formatGanttDate, parseTickInterval,
+  startOfDay, startOfMonth, startOfQuarter, startOfWeekOn, startOfYear,
 } from './dates.ts'
 
 // ============================================================================
@@ -92,8 +93,11 @@ export function layoutGantt(diagram: GanttDiagram, _options: RenderOptions = {})
   const toX = (t: number) => plotX + ((t - min) / span) * plotWidth
 
   // ---- rows --------------------------------------------------------------
+  // Rows were assigned by the parser, which is where compact mode decides
+  // that two non-overlapping tasks may share one.
   const bars: PositionedGanttBar[] = []
   const milestones: PositionedMilestone[] = []
+  const verticals: PositionedGanttVertical[] = []
   const positionedSections: PositionedGanttSection[] = []
 
   let y = plotY
@@ -103,8 +107,33 @@ export function layoutGantt(diagram: GanttDiagram, _options: RenderOptions = {})
     const bandTop = y
     y += G.sectionPadTop
 
+    // A section occupies as many rows as its highest row index needs, which
+    // in compact mode is fewer than its task count
+    const firstRow = Math.min(...section.tasks.map(t => t.row))
+    const rowCount = Math.max(...section.tasks.map(t => t.row)) - firstRow + 1
+    const rowTop = y
+
     for (const task of section.tasks) {
-      const rowCenter = y + G.rowHeight / 2
+      const rowY = rowTop + (task.row - firstRow) * G.rowHeight
+      const rowCenter = rowY + G.rowHeight / 2
+
+      if (task.vertical) {
+        // A vert task marks a moment across the whole chart, so it is drawn
+        // later as a full-height line; only its x is fixed here
+        const x = toX(task.start)
+        verticals.push({
+          id: task.id,
+          label: task.label,
+          x,
+          y1: plotY,
+          y2: plotY,  // filled in once the plot height is known
+          status: task.status,
+          labelX: x + G.outsideLabelGap,
+          labelY: plotY - 4,
+          time: task.start,
+        })
+        continue
+      }
 
       if (task.milestone) {
         const cx = toX(task.start)
@@ -124,7 +153,7 @@ export function layoutGantt(diagram: GanttDiagram, _options: RenderOptions = {})
         const x1 = toX(task.start)
         const x2 = toX(task.end)
         const width = Math.max(x2 - x1, G.minBarWidth)
-        const barY = y + G.barInset
+        const barY = rowY + G.barInset
         const barHeight = G.rowHeight - G.barInset * 2
 
         const textWidth = estimateTextWidth(task.label, G.taskFontSize, G.taskFontWeight)
@@ -142,13 +171,15 @@ export function layoutGantt(diagram: GanttDiagram, _options: RenderOptions = {})
           labelY: rowCenter,
           labelAnchor: fitsInside ? 'middle' : 'start',
           labelOutside: !fitsInside,
+          progress: task.progress,
+          progressWidth: task.progress === undefined ? 0 : width * task.progress,
           start: task.start,
           end: task.end,
         })
       }
-
-      y += G.rowHeight
     }
+
+    y = rowTop + rowCount * G.rowHeight
 
     y += G.sectionPadBottom
     const bandHeight = y - bandTop
@@ -167,7 +198,7 @@ export function layoutGantt(diagram: GanttDiagram, _options: RenderOptions = {})
 
   // ---- axis --------------------------------------------------------------
   const pattern = diagram.axisFormat ?? defaultAxisFormat(span)
-  const tickTimes = generateTicks(min, max, span, plotWidth, pattern)
+  const tickTimes = generateTicks(min, max, span, plotWidth, pattern, diagram)
 
   const ticks: GanttAxisTick[] = tickTimes.map(t => ({
     label: formatGanttDate(t, pattern),
@@ -185,6 +216,25 @@ export function layoutGantt(diagram: GanttDiagram, _options: RenderOptions = {})
     x1: t.x, y1: plotY, x2: t.x, y2: plotY + plotHeight,
   }))
 
+  // Vert markers span the finished plot, which is only known now
+  for (const vertical of verticals) {
+    vertical.y2 = plotY + plotHeight
+  }
+
+  // ---- today marker ------------------------------------------------------
+  // Drawn only when today actually falls inside the chart; `todayMarker off`
+  // suppresses it, and any other value is an inline style for the line.
+  const today = startOfDay(Date.now())
+  const markerOff = diagram.todayMarker?.trim().toLowerCase() === 'off'
+  const todayMarker = !markerOff && today >= min && today <= max
+    ? {
+        x: toX(today),
+        y1: plotY,
+        y2: plotY + plotHeight,
+        style: diagram.todayMarker ? cssFromMarkerStyle(diagram.todayMarker) : undefined,
+      }
+    : undefined
+
   // ---- canvas ------------------------------------------------------------
   // The rightmost label may overhang the plot; grow the canvas to contain it.
   const labelOverhang = Math.max(
@@ -200,7 +250,20 @@ export function layoutGantt(diagram: GanttDiagram, _options: RenderOptions = {})
   )
 
   const width = plotX + plotWidth + labelOverhang + G.padding
-  const height = plotY + plotHeight + G.padding
+
+  // `topAxis` repeats the time axis on the far edge of the plot, so a long
+  // chart stays readable without scrolling back to the header
+  const bottomAxis: PositionedGanttAxis | undefined = diagram.topAxis
+    ? {
+        ticks: ticks.map(t => ({ ...t, labelY: plotY + plotHeight + G.axisHeight / 2 })),
+        line: {
+          x1: plotX, y1: plotY + plotHeight,
+          x2: plotX + plotWidth, y2: plotY + plotHeight,
+        },
+      }
+    : undefined
+
+  const height = plotY + plotHeight + (bottomAxis ? G.axisHeight : 0) + G.padding
 
   const title = diagram.title
     ? { text: diagram.title, x: width / 2, y: G.padding + G.titleFontSize }
@@ -211,12 +274,27 @@ export function layoutGantt(diagram: GanttDiagram, _options: RenderOptions = {})
     height: Math.round(height),
     title,
     axis,
+    bottomAxis,
     gridLines,
     sections: positionedSections,
     bars,
     milestones,
+    verticals,
+    todayMarker,
     plotArea: { x: plotX, y: plotY, width: plotWidth, height: plotHeight },
   }
+}
+
+/**
+ * Convert a `todayMarker` declaration into an inline style string.
+ *
+ * Mermaid writes it comma-separated (`stroke:red,stroke-width:2px`) and swaps
+ * the commas for semicolons at render time, so this does the same.
+ */
+function cssFromMarkerStyle(declaration: string): string | undefined {
+  const css = declaration.trim().replace(/,/g, ';')
+  // Reject anything that could close the attribute or open a tag
+  return /[<>"']/.test(css) ? undefined : css
 }
 
 // ---------------------------------------------------------------------------
@@ -273,11 +351,37 @@ function defaultAxisFormat(span: number): string {
 /**
  * Generate tick timestamps across the domain.
  *
- * Starts from the natural calendar granularity for the span and coarsens the
- * step until consecutive labels are at least `minTickGap` pixels apart, so
- * long projects do not produce an unreadable picket fence.
+ * An explicit `tickInterval` wins outright — the author asked for that step.
+ * Otherwise this starts from the natural calendar granularity for the span and
+ * coarsens the step until consecutive labels are at least `minTickGap` pixels
+ * apart, so long projects do not produce an unreadable picket fence.
  */
-function generateTicks(min: number, max: number, span: number, plotWidth: number, pattern: string): number[] {
+function generateTicks(
+  min: number,
+  max: number,
+  span: number,
+  plotWidth: number,
+  pattern: string,
+  diagram: GanttDiagram,
+): number[] {
+  // Explicit tickInterval, snapped to natural boundaries so ticks land on the
+  // 1st of a month or on the configured first day of the week
+  if (diagram.tickInterval) {
+    const interval = parseTickInterval(diagram.tickInterval)
+    if (interval) {
+      const out: number[] = []
+      let t = floorToTickUnit(min, interval, diagram.weekStart)
+      while (t < min) t = advanceTick(t, interval)
+      // Same hard cap as the automatic path: a bad interval must not hang
+      while (t <= max && out.length < 400) {
+        out.push(t)
+        t = advanceTick(t, interval)
+      }
+      if (out.length > 0) return out
+    }
+    // An unparseable or empty interval falls through to the automatic axis
+  }
+
   const days = span / DAY_MS
 
   const base: Granularity =
@@ -299,7 +403,7 @@ function generateTicks(min: number, max: number, span: number, plotWidth: number
   ]
 
   for (const candidate of candidates) {
-    const times = calendarTicks(min, max, candidate.granularity, candidate.every)
+    const times = calendarTicks(min, max, candidate.granularity, candidate.every, diagram.weekStart)
     if (times.length <= 1) return times
     const widest = Math.max(...times.map(t => estimateTextWidth(formatGanttDate(t, pattern), G.axisFontSize, G.axisFontWeight)))
     const gap = (plotWidth / span) * (times[1]! - times[0]!)
@@ -317,10 +421,17 @@ function coarser(g: Granularity): Granularity[] {
 }
 
 /** All calendar boundaries of the given granularity inside [min, max]. */
-function calendarTicks(min: number, max: number, granularity: Granularity, every: number): number[] {
+function calendarTicks(
+  min: number,
+  max: number,
+  granularity: Granularity,
+  every: number,
+  weekStart: number,
+): number[] {
   const starters: Record<Granularity, (t: number) => number> = {
     day: startOfDay,
-    week: startOfWeek,
+    // `weekday <name>` moves where the weekly gridlines fall
+    week: t => startOfWeekOn(t, weekStart),
     month: startOfMonth,
     quarter: startOfQuarter,
     year: startOfYear,

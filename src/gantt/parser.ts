@@ -1,7 +1,8 @@
 import type { GanttDiagram, GanttSection, GanttTask, GanttTaskStatus, GanttTaskTag } from './types.ts'
+import type { ExcludeCalendar, WeekendStart } from './dates.ts'
 import {
-  DEFAULT_DATE_FORMAT, addDuration, isDateLike, isDurationLike,
-  parseDuration, parseGanttDate,
+  DAY_MS, DEFAULT_DATE_FORMAT, addDuration, applyExcludes, isDateLike, isDurationLike,
+  parseDuration, parseGanttDate, startOfDay, weekdayIndex,
 } from './dates.ts'
 
 // ============================================================================
@@ -11,34 +12,49 @@ import {
 //
 // Directives:
 //   gantt
-//   title        Project plan
-//   dateFormat   YYYY-MM-DD
-//   axisFormat   %b %Y
-//   excludes / todayMarker / tickInterval / weekday  — accepted and ignored
-//   section      Phase one
+//   title              Project plan
+//   dateFormat         YYYY-MM-DD
+//   axisFormat         %b %Y
+//   tickInterval       1week
+//   excludes           weekends, monday, 2024-01-01
+//   includes           2024-01-06
+//   weekday            monday            — first day of the week
+//   weekend            friday            — weekends means Fri+Sat
+//   todayMarker        off | stroke:red,stroke-width:2px
+//   displayMode        compact
+//   inclusiveEndDates
+//   topAxis
+//   section            Phase one
 //
 // Tasks — `label : metadata` where metadata is a comma-separated list:
 //   Design        :done, des1, 2024-01-01, 2024-02-15     (explicit end)
 //   Build         :active, dev1, after des1, 30d           (dependency + duration)
 //   Review        :crit, 2024-03-01, 2w
 //   Launch        :milestone, 2024-04-01, 0d
-//   Bare task     :2024-01-01, 10d                        (no tags, no id)
+//   Wrap up       :task1, after des1, until dev1           (ends when dev1 starts)
+//   Half done     :active, 2024-01-01, 30d, 60%            (progress)
+//   Cutover       :vert, 2024-03-01                        (vertical marker)
+//   Bare task     :2024-01-01, 10d                         (no tags, no id)
 //
 // Metadata grammar, in the order Mermaid itself resolves it:
-//   [tag...] [id] [start] [end|duration]
-//   - tag      — done | active | crit | milestone
-//   - id       — any bare word that is not a tag, date, duration or `after`
+//   [tag...] [id] [start] [end|duration] [progress]
+//   - tag      — done | active | crit | milestone | vert
+//   - id       — any bare word that is not a tag, date, duration or keyword
 //   - start    — a date, or `after <id> [<id>...]`
-//   - end      — a date, or a duration (`30d`, `2w`, `6mo`)
+//   - end      — a date, a duration (`30d`, `2w`, `6mo`), or `until <id>...`
+//   - progress — `60%`
 //
 // Unresolvable tasks (no start, no dependency) chain after the previous task,
 // which is what Mermaid does and what keeps a sloppy diagram renderable.
 // ============================================================================
 
-const TAGS = new Set<GanttTaskTag>(['done', 'active', 'crit', 'milestone'])
+const TAGS = new Set<GanttTaskTag>(['done', 'active', 'crit', 'milestone', 'vert'])
 
 /** Default length for a task whose metadata gives no end and no duration. */
 const DEFAULT_TASK_DURATION = { amount: 1, unit: 'd' as const }
+
+/** Mermaid's default first day of the week. */
+const DEFAULT_WEEK_START = 1 // Monday
 
 /**
  * Parse a Mermaid gantt diagram from preprocessed lines.
@@ -48,7 +64,16 @@ export function parseGanttDiagram(lines: string[]): GanttDiagram {
   let title: string | undefined
   let dateFormat = DEFAULT_DATE_FORMAT
   let axisFormat: string | undefined
+  let tickInterval: string | undefined
+  let todayMarker: string | undefined
+  let weekStart = DEFAULT_WEEK_START
+  let weekend: WeekendStart = 'saturday'
+  let compact = false
+  let inclusiveEndDates = false
+  let topAxis = false
 
+  const excludes: string[] = []
+  const includes: string[] = []
   const sections: GanttSection[] = []
   const tasks: GanttTask[] = []
   const byId = new Map<string, GanttTask>()
@@ -75,22 +100,60 @@ export function parseGanttDiagram(lines: string[]): GanttDiagram {
     // Header
     if (/^gantt\b/i.test(line)) continue
 
+    // Flag directives — no value, so they are matched before the keyed ones
+    if (/^inclusiveEndDates\s*$/i.test(line)) { inclusiveEndDates = true; continue }
+    if (/^topAxis\s*$/i.test(line)) { topAxis = true; continue }
+
     // Directives — `keyword value`
-    const directive = line.match(/^(title|dateFormat|axisFormat|excludes|includes|todayMarker|tickInterval|weekday|section)\b\s*(.*)$/i)
+    const directive = line.match(
+      /^(title|dateFormat|axisFormat|tickInterval|excludes|includes|todayMarker|weekday|weekend|displayMode|section)\b\s*(.*)$/i
+    )
     if (directive) {
       const key = directive[1]!.toLowerCase()
       const value = directive[2]!.trim()
 
-      if (key === 'title') { title = unquote(value); continue }
-      if (key === 'dateformat') { if (value) dateFormat = value; continue }
-      if (key === 'axisformat') { if (value) axisFormat = value; continue }
-      if (key === 'section') {
-        current = { title: unquote(value), tasks: [] }
-        sections.push(current)
-        continue
+      switch (key) {
+        case 'title':
+          title = unquote(value)
+          continue
+        case 'dateformat':
+          if (value) dateFormat = value
+          continue
+        case 'axisformat':
+          if (value) axisFormat = value
+          continue
+        case 'tickinterval':
+          if (value) tickInterval = value
+          continue
+        case 'excludes':
+          excludes.push(...splitTokens(value))
+          continue
+        case 'includes':
+          includes.push(...splitTokens(value))
+          continue
+        case 'todaymarker':
+          // An empty `todayMarker` keeps the default marker, so only a
+          // non-empty declaration is recorded
+          if (value) todayMarker = value
+          continue
+        case 'weekday': {
+          const index = weekdayIndex(value)
+          if (index !== null) weekStart = index
+          continue
+        }
+        case 'weekend': {
+          const day = value.trim().toLowerCase()
+          if (day === 'friday' || day === 'saturday') weekend = day
+          continue
+        }
+        case 'displaymode':
+          compact = value.trim().toLowerCase() === 'compact'
+          continue
+        case 'section':
+          current = { title: unquote(value), tasks: [] }
+          sections.push(current)
+          continue
       }
-      // excludes / includes / todayMarker / tickInterval / weekday: accepted, not modelled
-      continue
     }
 
     // Task — everything up to the first ':' is the label
@@ -105,7 +168,11 @@ export function parseGanttDiagram(lines: string[]): GanttDiagram {
     const id = parsed.id ?? `task${++autoId}`
     const previous = tasks[tasks.length - 1]
 
-    const { start, end } = resolveSchedule(parsed, byId, previous, dateFormat)
+    const calendar: ExcludeCalendar = { excludes, includes, weekend, dateFormat }
+    const { start, end } = resolveSchedule(parsed, byId, previous, calendar, inclusiveEndDates)
+
+    const vertical = parsed.tags.includes('vert')
+    const milestone = parsed.tags.includes('milestone')
 
     push({
       id,
@@ -113,14 +180,65 @@ export function parseGanttDiagram(lines: string[]): GanttDiagram {
       section: '',
       tags: parsed.tags,
       status: dominantStatus(parsed.tags),
-      milestone: parsed.tags.includes('milestone'),
+      milestone,
       start,
-      end: parsed.tags.includes('milestone') ? start : end,
+      end: milestone || vertical ? start : end,
       after: parsed.after,
+      until: parsed.until,
+      progress: parsed.progress,
+      vertical,
+      // Row assignment needs every task's dates, so it runs as a second pass
+      row: 0,
     })
   }
 
-  return { title, dateFormat, axisFormat, sections, tasks }
+  assignRows(sections, compact)
+
+  return {
+    title, dateFormat, axisFormat, tickInterval, todayMarker,
+    excludes, includes, weekStart, weekend,
+    compact, inclusiveEndDates, topAxis,
+    sections, tasks,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Row assignment
+// ---------------------------------------------------------------------------
+
+/**
+ * Assign each task the row it is drawn on.
+ *
+ * Normally that is one row per task, in source order. In `displayMode compact`
+ * tasks within a section share a row whenever their time spans do not overlap,
+ * which is the whole point of the mode: a wide, shallow chart instead of a
+ * tall one.
+ */
+function assignRows(sections: GanttSection[], compact: boolean): void {
+  let nextRow = 0
+
+  for (const section of sections) {
+    if (!compact) {
+      for (const task of section.tasks) task.row = nextRow++
+      continue
+    }
+
+    // First-fit: drop each task on the first row whose last task has ended
+    const rowEnds: number[] = []
+
+    for (const task of section.tasks) {
+      let row = rowEnds.findIndex(end => end <= task.start)
+      if (row === -1) {
+        row = rowEnds.length
+        rowEnds.push(task.end)
+      } else {
+        rowEnds[row] = task.end
+      }
+      task.row = nextRow + row
+    }
+
+    nextRow += Math.max(1, rowEnds.length)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -137,10 +255,14 @@ export interface TaskMeta {
   startDate?: number
   /** Task ids this task starts after */
   after: string[]
+  /** Task ids this task runs until */
+  until: string[]
   /** Explicit end date, epoch ms */
   endDate?: number
   /** Duration token (`30d`) when the end is relative */
   duration?: string
+  /** Completed fraction 0..1 from a `60%` token */
+  progress?: number
 }
 
 /**
@@ -149,7 +271,7 @@ export interface TaskMeta {
  */
 export function parseTaskMeta(meta: string, dateFormat: string = DEFAULT_DATE_FORMAT): TaskMeta {
   const parts = meta.split(',').map(p => p.trim()).filter(p => p.length > 0)
-  const result: TaskMeta = { tags: [], after: [] }
+  const result: TaskMeta = { tags: [], after: [], until: [] }
 
   for (const part of parts) {
     const lower = part.toLowerCase()
@@ -165,6 +287,21 @@ export function parseTaskMeta(meta: string, dateFormat: string = DEFAULT_DATE_FO
     const after = part.match(/^after\s+(.+)$/i)
     if (after) {
       result.after.push(...after[1]!.trim().split(/\s+/))
+      continue
+    }
+
+    // Reverse dependency: `until id1 id2` — ends when the earliest starts
+    const until = part.match(/^until\s+(.+)$/i)
+    if (until) {
+      result.until.push(...until[1]!.trim().split(/\s+/))
+      continue
+    }
+
+    // Progress: `60%`
+    const progress = part.match(/^(\d+(?:\.\d+)?)\s*%$/)
+    if (progress) {
+      // Clamp to 0..1 so a typo cannot overflow the bar
+      result.progress = Math.max(0, Math.min(1, Number(progress[1]) / 100))
       continue
     }
 
@@ -194,12 +331,16 @@ export function parseTaskMeta(meta: string, dateFormat: string = DEFAULT_DATE_FO
  *
  * Priority for the start: explicit date → end of the latest `after` dependency
  * → end of the previous task → epoch of "today" normalized to a stable value.
+ *
+ * Priority for the end: explicit date → earliest start among `until` targets
+ * → duration → one day.
  */
 function resolveSchedule(
   meta: TaskMeta,
   byId: Map<string, GanttTask>,
   previous: GanttTask | undefined,
-  dateFormat: string,
+  calendar: ExcludeCalendar,
+  inclusiveEndDates: boolean,
 ): { start: number; end: number } {
   let start: number | undefined = meta.startDate
 
@@ -216,25 +357,46 @@ function resolveSchedule(
 
   // Nothing to anchor to: fall back to the start of today (UTC), so a
   // date-less diagram still lays out instead of throwing.
-  if (start === undefined) {
-    const now = new Date()
-    start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  if (start === undefined) start = startOfDay(Date.now())
+
+  if (meta.tags.includes('milestone') || meta.tags.includes('vert')) {
+    return { start, end: start }
   }
 
-  if (meta.tags.includes('milestone')) return { start, end: start }
-
   let end: number | undefined = meta.endDate
+
+  // An explicit end date is a stated deadline, so excludes must not move it.
+  // Only a duration-derived end is stretched past non-working days.
+  let endWasExplicit = end !== undefined
+
+  if (end !== undefined && inclusiveEndDates) {
+    // `inclusiveEndDates` makes the written end date a full working day
+    end += DAY_MS
+  }
+
+  if (end === undefined && meta.until.length > 0) {
+    // Run until the earliest of the referenced tasks begins
+    const starts = meta.until
+      .map(id => byId.get(id))
+      .filter((t): t is GanttTask => t !== undefined)
+      .map(t => t.start)
+    if (starts.length > 0) {
+      end = Math.min(...starts)
+      endWasExplicit = true
+    }
+  }
+
   if (end === undefined && meta.duration) {
     const duration = parseDuration(meta.duration)
     if (duration) end = addDuration(start, duration)
   }
+
   if (end === undefined) end = addDuration(start, DEFAULT_TASK_DURATION)
 
   // Guard against reversed ranges (typo in the source)
   if (end < start) [start, end] = [end, start]
 
-  // Keep the compiler honest about the unused parameter in this branch
-  void dateFormat
+  if (!endWasExplicit) end = applyExcludes(start, end, calendar)
 
   return { start, end }
 }
@@ -250,6 +412,19 @@ function dominantStatus(tags: GanttTaskTag[]): GanttTaskStatus {
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Split a directive value on commas and whitespace.
+ *
+ * `excludes weekends, 2024-01-01` and `excludes weekends 2024-01-01` are both
+ * accepted, because both appear in the wild.
+ */
+function splitTokens(value: string): string[] {
+  return value
+    .split(/[,\s]+/)
+    .map(t => t.trim().toLowerCase())
+    .filter(t => t.length > 0)
+}
 
 /** Remove a trailing `%% comment` from a line. */
 function stripInlineComment(line: string): string {

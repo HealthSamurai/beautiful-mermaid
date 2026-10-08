@@ -273,3 +273,209 @@ export function startOfQuarter(epoch: number): number {
 export function startOfYear(epoch: number): number {
   return Date.UTC(new Date(epoch).getUTCFullYear(), 0, 1)
 }
+
+// ---------------------------------------------------------------------------
+// Excluded days — the `excludes` / `includes` / `weekend` calendar
+//
+// Mermaid lets a diagram declare non-working days, and then stretches any task
+// that is not given an explicit end date so that its DURATION counts only
+// working days:
+//
+//   excludes weekends
+//   excludes 2024-01-01, monday
+//   includes 2024-01-06          — wins over the excludes above
+//   weekend friday               — weekend is Fri+Sat instead of Sat+Sun
+//
+// A task with an explicit end date keeps it: the author stated a deadline, and
+// silently moving it would be worse than showing it spanning a holiday.
+// ---------------------------------------------------------------------------
+
+/** Day on which the weekend starts, as declared by `weekend`. */
+export type WeekendStart = 'friday' | 'saturday'
+
+/** The non-working-day calendar a gantt diagram declares. */
+export interface ExcludeCalendar {
+  /** Raw `excludes` tokens: `weekends`, a weekday name, or a date */
+  excludes: string[]
+  /** Raw `includes` tokens — dates that override an exclusion */
+  includes: string[]
+  /** Which two days `weekends` means */
+  weekend: WeekendStart
+  /** `dateFormat`, so a date token is matched the way the author wrote it */
+  dateFormat: string
+}
+
+/** Weekday names indexed by `Date#getUTCDay()` (0 = Sunday). */
+const WEEKDAY_NAMES = [
+  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+] as const
+
+/** Upper bound on the search for a valid end date, matching Mermaid. */
+const MAX_EXCLUDE_ITERATIONS = 10_000
+
+/**
+ * Whether a day is excluded from the working calendar.
+ *
+ * `includes` is checked first, so a single working holiday can be carved out
+ * of a blanket `excludes weekends`.
+ */
+export function isExcludedDay(epoch: number, calendar: ExcludeCalendar): boolean {
+  const { excludes, includes, weekend, dateFormat } = calendar
+  if (excludes.length === 0) return false
+
+  const iso = formatIsoDate(epoch)
+  const asWritten = formatWithDateFormat(epoch, dateFormat)
+
+  // An explicit include overrides any exclusion
+  if (includes.includes(iso) || includes.includes(asWritten)) return false
+
+  const dayName = WEEKDAY_NAMES[new Date(epoch).getUTCDay()]!
+
+  if (excludes.includes('weekends')) {
+    const weekendDays = weekend === 'friday'
+      ? ['friday', 'saturday']
+      : ['saturday', 'sunday']
+    if (weekendDays.includes(dayName)) return true
+  }
+
+  if (excludes.includes(dayName)) return true
+
+  return excludes.includes(iso) || excludes.includes(asWritten)
+}
+
+/**
+ * Push a task's end date out past any excluded days it covers.
+ *
+ * Walks the span one day at a time and adds a day to the end for each excluded
+ * day found, so the task keeps its intended number of working days. This is
+ * Mermaid's own algorithm, iteration cap included — a calendar that excludes
+ * every day would otherwise loop forever.
+ *
+ * @returns the adjusted end, or the original when nothing is excluded
+ */
+export function applyExcludes(start: number, end: number, calendar: ExcludeCalendar): number {
+  if (calendar.excludes.length === 0) return end
+
+  let adjustedEnd = end
+  let cursor = startOfDay(start) + DAY_MS
+  let iterations = 0
+
+  while (cursor <= adjustedEnd) {
+    if (isExcludedDay(cursor, calendar)) {
+      adjustedEnd += DAY_MS
+      if (++iterations > MAX_EXCLUDE_ITERATIONS) return end
+    }
+    cursor += DAY_MS
+  }
+
+  return adjustedEnd
+}
+
+/** Format as `YYYY-MM-DD`, the form both excludes and includes always accept. */
+function formatIsoDate(epoch: number): string {
+  const d = new Date(epoch)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+}
+
+/**
+ * Render a timestamp back through a `dateFormat` pattern.
+ *
+ * Needed because `excludes 01/02/2024` under `dateFormat DD/MM/YYYY` must
+ * match the same day the author meant.
+ */
+function formatWithDateFormat(epoch: number, pattern: string): string {
+  const d = new Date(epoch)
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  return pattern.replace(/YYYY|YY|MM|M|DD|D|HH|H|mm|ss/g, token => {
+    switch (token) {
+      case 'YYYY': return String(d.getUTCFullYear())
+      case 'YY': return pad(d.getUTCFullYear() % 100)
+      case 'MM': return pad(d.getUTCMonth() + 1)
+      case 'M': return String(d.getUTCMonth() + 1)
+      case 'DD': return pad(d.getUTCDate())
+      case 'D': return String(d.getUTCDate())
+      case 'HH': return pad(d.getUTCHours())
+      case 'H': return String(d.getUTCHours())
+      case 'mm': return pad(d.getUTCMinutes())
+      case 'ss': return pad(d.getUTCSeconds())
+      default: return token
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Tick intervals
+// ---------------------------------------------------------------------------
+
+/** A parsed `tickInterval` declaration, e.g. `2week`. */
+export interface TickInterval {
+  every: number
+  unit: 'millisecond' | 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month'
+}
+
+const TICK_INTERVAL_RE = /^([1-9]\d*)\s*(millisecond|second|minute|hour|day|week|month)s?$/i
+
+/**
+ * Parse a `tickInterval` declaration such as `1day`, `2week`, `3month`.
+ *
+ * @returns the parsed interval, or `null` when the token is not one — an
+ *   invalid value falls back to the automatic axis rather than failing
+ */
+export function parseTickInterval(value: string): TickInterval | null {
+  const m = value.trim().match(TICK_INTERVAL_RE)
+  if (!m) return null
+  return { every: Number(m[1]), unit: m[2]!.toLowerCase() as TickInterval['unit'] }
+}
+
+/** Advance one tick step from `epoch`. */
+export function advanceTick(epoch: number, interval: TickInterval): number {
+  const { every, unit } = interval
+  switch (unit) {
+    case 'millisecond': return epoch + every
+    case 'second': return epoch + every * 1000
+    case 'minute': return epoch + every * 60_000
+    case 'hour': return epoch + every * 3_600_000
+    case 'day': return epoch + every * DAY_MS
+    case 'week': return epoch + every * 7 * DAY_MS
+    case 'month': return shiftMonths(epoch, every)
+  }
+}
+
+/**
+ * Snap a timestamp back to the natural boundary of a tick unit, so ticks land
+ * on round values (the 1st of a month, a Monday) rather than on the first
+ * task's arbitrary start time.
+ */
+export function floorToTickUnit(epoch: number, interval: TickInterval, weekStart: number = 1): number {
+  switch (interval.unit) {
+    case 'month': return startOfMonth(epoch)
+    case 'week': return startOfWeekOn(epoch, weekStart)
+    case 'day': return startOfDay(epoch)
+    case 'hour': {
+      const d = new Date(epoch)
+      return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours())
+    }
+    default: return epoch
+  }
+}
+
+/**
+ * Start of the week containing `epoch`, for a configurable first day.
+ *
+ * `weekday monday` through `weekday sunday` chooses which day a week starts
+ * on, which moves where the weekly gridlines fall.
+ */
+export function startOfWeekOn(epoch: number, weekStart: number): number {
+  const day = startOfDay(epoch)
+  const dow = new Date(day).getUTCDay()
+  const shift = (dow - weekStart + 7) % 7
+  return day - shift * DAY_MS
+}
+
+/** Day index (0 = Sunday) for a `weekday` declaration. */
+export function weekdayIndex(name: string): number | null {
+  const idx = WEEKDAY_NAMES.indexOf(name.trim().toLowerCase() as typeof WEEKDAY_NAMES[number])
+  return idx === -1 ? null : idx
+}

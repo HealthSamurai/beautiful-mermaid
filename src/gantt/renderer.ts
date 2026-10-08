@@ -22,10 +22,11 @@ import { CHART_ACCENT_FALLBACK } from '../xychart/colors.ts'
 //   1. Section bands (alternating tint)
 //   2. Grid lines
 //   3. Axis baseline + axis labels
-//   4. Task bars (+ their labels)
+//   4. Task bars (+ their progress overlay and labels)
 //   5. Milestone diamonds (+ their labels)
-//   6. Section labels in the gutter
-//   7. Title
+//   6. Vert markers and the today marker
+//   7. Section labels in the gutter
+//   8. Title
 // ============================================================================
 
 const FONT = {
@@ -70,14 +71,17 @@ export function renderGanttSvg(
   }
 
   // 3. Axis baseline + labels
-  const { line } = chart.axis
-  parts.push(`<line x1="${r(line.x1)}" y1="${r(line.y1)}" x2="${r(line.x2)}" y2="${r(line.y2)}" class="gantt-axis-line"/>`)
-  for (const tick of chart.axis.ticks) {
-    parts.push(
-      `<text x="${r(tick.x)}" y="${r(tick.labelY)}" text-anchor="middle" ` +
-      `font-size="${FONT.axisSize}" font-weight="${FONT.axisWeight}" ` +
-      `dy="${TEXT_BASELINE_SHIFT}" class="gantt-axis-label">${escapeXml(tick.label)}</text>`
-    )
+  for (const axis of [chart.axis, chart.bottomAxis]) {
+    if (!axis) continue
+    const { line } = axis
+    parts.push(`<line x1="${r(line.x1)}" y1="${r(line.y1)}" x2="${r(line.x2)}" y2="${r(line.y2)}" class="gantt-axis-line"/>`)
+    for (const tick of axis.ticks) {
+      parts.push(
+        `<text x="${r(tick.x)}" y="${r(tick.labelY)}" text-anchor="middle" ` +
+        `font-size="${FONT.axisSize}" font-weight="${FONT.axisWeight}" ` +
+        `dy="${TEXT_BASELINE_SHIFT}" class="gantt-axis-label">${escapeXml(tick.label)}</text>`
+      )
+    }
   }
 
   // 4. Task bars
@@ -91,6 +95,17 @@ export function renderGanttSvg(
     )
 
     const labelCls = bar.labelOutside ? 'gantt-task-label-out' : `gantt-task-label-in gantt-text-${bar.status}`
+
+    // A progress overlay sits on top of the bar, clipped to its own rounded
+    // corners so a partially done task reads at a glance
+    if (bar.progressWidth > 0) {
+      parts.push(
+        `<rect x="${r(bar.x)}" y="${r(bar.y)}" width="${r(bar.progressWidth)}" height="${r(bar.height)}" ` +
+        `rx="${FONT.barRadius}" ry="${FONT.barRadius}" class="gantt-progress" ` +
+        `data-progress="${Math.round((bar.progress ?? 0) * 100)}"/>`
+      )
+    }
+
     parts.push(
       `<text x="${r(bar.labelX)}" y="${r(bar.labelY)}" text-anchor="${bar.labelAnchor}" ` +
       `font-size="${FONT.taskSize}" font-weight="${FONT.taskWeight}" ` +
@@ -120,7 +135,33 @@ export function renderGanttSvg(
     )
   }
 
-  // 6. Section labels
+  // 6. Vert markers — a labelled line across the whole plot
+  for (const v of chart.verticals) {
+    parts.push(
+      `<line x1="${r(v.x)}" y1="${r(v.y1)}" x2="${r(v.x)}" y2="${r(v.y2)}" ` +
+      `class="gantt-vert gantt-vert-${v.status}" data-task="${escapeXml(v.id)}" ` +
+      `data-start="${isoDay(v.time)}">` +
+      `<title>${escapeXml(`${v.label} — ${isoDay(v.time)}`)}</title></line>`
+    )
+    parts.push(
+      `<text x="${r(v.labelX)}" y="${r(v.labelY)}" text-anchor="start" ` +
+      `font-size="${FONT.taskSize}" font-weight="${FONT.taskWeight}" ` +
+      `class="gantt-vert-label">${escapeXml(v.label)}</text>`
+    )
+  }
+
+  // Today marker — only present when today falls inside the chart and the
+  // diagram did not switch it off
+  if (chart.todayMarker) {
+    const marker = chart.todayMarker
+    const style = marker.style ? ` style="${escapeXml(marker.style)}"` : ''
+    parts.push(
+      `<line x1="${r(marker.x)}" y1="${r(marker.y1)}" x2="${r(marker.x)}" y2="${r(marker.y2)}" ` +
+      `class="gantt-today"${style}><title>Today</title></line>`
+    )
+  }
+
+  // 7. Section labels
   for (const section of chart.sections) {
     if (!section.title) continue
     parts.push(
@@ -130,7 +171,7 @@ export function renderGanttSvg(
     )
   }
 
-  // 7. Title
+  // 8. Title
   if (chart.title) {
     parts.push(
       `<text x="${r(chart.title.x)}" y="${r(chart.title.y)}" text-anchor="middle" ` +
@@ -180,6 +221,14 @@ function ganttStyles(): string {
   .gantt-task-label-out { fill: var(--_text-sec); }
   .gantt-task-label-in { fill: var(--bg); }
   .gantt-task-label-in.gantt-text-done { fill: var(--_text); }
+  .gantt-progress { fill: color-mix(in srgb, var(--fg) 30%, transparent); pointer-events: none; }
+  .gantt-vert { stroke-width: 2; stroke-dasharray: 5 3; }
+  .gantt-vert.gantt-vert-default { stroke: var(--_gantt-accent); }
+  .gantt-vert.gantt-vert-active  { stroke: var(--_gantt-active); }
+  .gantt-vert.gantt-vert-crit    { stroke: var(--_gantt-crit); }
+  .gantt-vert.gantt-vert-done    { stroke: var(--_gantt-done); }
+  .gantt-vert-label { fill: var(--_text-sec); }
+  .gantt-today { stroke: color-mix(in srgb, var(--_gantt-crit) 85%, var(--fg)); stroke-width: 2; stroke-dasharray: 3 3; }
 </style>`
 }
 
