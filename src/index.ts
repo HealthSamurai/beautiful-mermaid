@@ -15,6 +15,7 @@
 //   - Pie charts (pie)
 //   - User journeys (journey)
 //   - Quadrant charts (quadrantChart)
+//   - Mindmaps (mindmap)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -66,12 +67,15 @@ import { renderJourneySvg } from './journey/renderer.ts'
 import { parseQuadrantDiagram } from './quadrant/parser.ts'
 import { layoutQuadrant } from './quadrant/layout.ts'
 import { renderQuadrantSvg } from './quadrant/renderer.ts'
+import { parseMindmapDiagram } from './mindmap/parser.ts'
+import { layoutMindmap } from './mindmap/layout.ts'
+import { renderMindmapSvg } from './mindmap/renderer.ts'
 
 /**
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -80,6 +84,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^pie\b/.test(firstLine)) return 'pie'
   if (/^journey\b/.test(firstLine)) return 'journey'
   if (/^quadrantchart\b/.test(firstLine)) return 'quadrant'
+  if (/^mindmap\b/.test(firstLine)) return 'mindmap'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -193,6 +198,13 @@ export function renderMermaidSVG(
       const diagram = parseQuadrantDiagram(lines)
       const positioned = layoutQuadrant(diagram, options)
       return renderQuadrantSvg(positioned, colors, font, transparent)
+    }
+    case 'mindmap': {
+      // Mindmap nesting comes from source indentation, so this parser gets
+      // the raw text rather than the trimmed lines every other type takes.
+      const diagram = parseMindmapDiagram(text)
+      const positioned = layoutMindmap(diagram, options)
+      return renderMindmapSvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {
