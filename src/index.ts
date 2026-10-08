@@ -21,6 +21,7 @@
 //   - Block diagrams (block-beta)
 //   - Radar charts (radar-beta)
 //   - Kanban boards (kanban)
+//   - Treemaps (treemap-beta)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -90,6 +91,9 @@ import { renderBlockSvg } from './block/renderer.ts'
 import { parseKanbanDiagram } from './kanban/parser.ts'
 import { layoutKanban } from './kanban/layout.ts'
 import { renderKanbanSvg } from './kanban/renderer.ts'
+import { parseTreemapDiagram } from './treemap/parser.ts'
+import { layoutTreemap } from './treemap/layout.ts'
+import { renderTreemapSvg } from './treemap/renderer.ts'
 import { parseFrontmatter } from './frontmatter/parser.ts'
 import type { FrontmatterColors, FrontmatterConfig } from './frontmatter/types.ts'
 import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
@@ -98,7 +102,7 @@ import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -113,6 +117,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^block(-beta)?\b/.test(firstLine)) return 'block'
   if (/^radar(-beta)?\b/.test(firstLine)) return 'radar'
   if (/^kanban\b/.test(firstLine)) return 'kanban'
+  if (/^treemap(-beta)?\b/.test(firstLine)) return 'treemap'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -310,6 +315,16 @@ function renderDiagramBody(
       diagram.showIds ??= metaConfig.kanban?.showIds
       const positioned = layoutKanban(diagram, options)
       return renderKanbanSvg(positioned, colors, font, transparent)
+    }
+    case 'treemap': {
+      // A treemap's hierarchy comes from source indentation, so this parser
+      // gets the raw text rather than the trimmed lines.
+      const diagram = parseTreemapDiagram(text)
+      diagram.title ??= meta.title
+      diagram.showValues ??= metaConfig.treemap?.showValues
+      diagram.valueFormat ??= metaConfig.treemap?.valueFormat
+      const positioned = layoutTreemap(diagram, options)
+      return renderTreemapSvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {

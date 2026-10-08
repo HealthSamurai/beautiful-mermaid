@@ -62,6 +62,18 @@ export interface FrontmatterConfig {
     /** Show each card's id as a chip under its text */
     showIds?: boolean
   }
+  treemap?: {
+    /**
+     * Show each leaf's value under its name.
+     * @default true
+     */
+    showValues?: boolean
+    /**
+     * Number format for displayed values — a thousands separator, a `$`
+     * prefix, a `.N` precision and a trailing `%` are recognised.
+     */
+    valueFormat?: string
+  }
 }
 
 /**

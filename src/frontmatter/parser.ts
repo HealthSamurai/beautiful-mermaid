@@ -274,6 +274,16 @@ function applySetting(
       config.kanban = { ...config.kanban, showIds: isTrue(value) }
       return
     }
+    if (scope.includes('treemap')) {
+      if (key === 'showvalues') {
+        config.treemap = { ...config.treemap, showValues: isTrue(value) }
+        return
+      }
+      if (key === 'valueformat') {
+        config.treemap = { ...config.treemap, valueFormat: value }
+        return
+      }
+    }
   }
 
   const role = THEME_VARIABLE_MAP[key]
@@ -287,6 +297,7 @@ function mergeConfig(target: FrontmatterConfig, source: FrontmatterConfig): void
   if (source.pie) target.pie = { ...target.pie, ...source.pie }
   if (source.timeline) target.timeline = { ...target.timeline, ...source.timeline }
   if (source.kanban) target.kanban = { ...target.kanban, ...source.kanban }
+  if (source.treemap) target.treemap = { ...target.treemap, ...source.treemap }
 }
 
 /** YAML-ish truthiness, so `true`, `yes` and `1` all read as enabled. */
