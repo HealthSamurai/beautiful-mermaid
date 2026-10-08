@@ -10,6 +10,7 @@
 //   - Sequence diagrams (sequenceDiagram)
 //   - Class diagrams (classDiagram)
 //   - ER diagrams (erDiagram)
+//   - Gantt charts (gantt)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -46,15 +47,19 @@ import { renderErSvg } from './er/renderer.ts'
 import { parseXYChart } from './xychart/parser.ts'
 import { layoutXYChart } from './xychart/layout.ts'
 import { renderXYChartSvg } from './xychart/renderer.ts'
+import { parseGanttDiagram } from './gantt/parser.ts'
+import { layoutGantt } from './gantt/layout.ts'
+import { renderGanttSvg } from './gantt/renderer.ts'
 
 /**
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
+  if (/^gantt\b/.test(firstLine)) return 'gantt'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -143,6 +148,11 @@ export function renderMermaidSVG(
       const chart = parseXYChart(lines)
       const positioned = layoutXYChart(chart, options)
       return renderXYChartSvg(positioned, colors, font, transparent, options.interactive ?? false)
+    }
+    case 'gantt': {
+      const diagram = parseGanttDiagram(lines)
+      const positioned = layoutGantt(diagram, options)
+      return renderGanttSvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {
