@@ -60,7 +60,7 @@ export interface AsciiRenderOptions {
  * Detect the diagram type from the mermaid source text.
  * Mirrors the detection logic in src/index.ts for the SVG renderer.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' | 'requirement' {
   const firstLine = text.trim().split('\n')[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -76,6 +76,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^radar(-beta)?\b/.test(firstLine)) return 'radar'
   if (/^kanban\b/.test(firstLine)) return 'kanban'
   if (/^treemap(-beta)?\b/.test(firstLine)) return 'treemap'
+  if (/^requirementdiagram\b/.test(firstLine)) return 'requirement'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -161,6 +162,7 @@ export function renderMermaidASCII(
     case 'radar':
     case 'kanban':
     case 'treemap':
+    case 'requirement':
       throw new Error(
         `ASCII rendering is not supported for ${diagramType} diagrams. ` +
         `Use renderMermaidSVG() instead.`

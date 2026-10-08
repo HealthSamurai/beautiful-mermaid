@@ -22,6 +22,7 @@
 //   - Radar charts (radar-beta)
 //   - Kanban boards (kanban)
 //   - Treemaps (treemap-beta)
+//   - Requirement diagrams (requirementDiagram)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -94,6 +95,9 @@ import { renderKanbanSvg } from './kanban/renderer.ts'
 import { parseTreemapDiagram } from './treemap/parser.ts'
 import { layoutTreemap } from './treemap/layout.ts'
 import { renderTreemapSvg } from './treemap/renderer.ts'
+import { parseRequirementDiagram } from './requirement/parser.ts'
+import { layoutRequirementDiagram } from './requirement/layout.ts'
+import { renderRequirementSvg } from './requirement/renderer.ts'
 import { parseFrontmatter } from './frontmatter/parser.ts'
 import type { FrontmatterColors, FrontmatterConfig } from './frontmatter/types.ts'
 import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
@@ -102,7 +106,7 @@ import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' | 'requirement' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -118,6 +122,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^radar(-beta)?\b/.test(firstLine)) return 'radar'
   if (/^kanban\b/.test(firstLine)) return 'kanban'
   if (/^treemap(-beta)?\b/.test(firstLine)) return 'treemap'
+  if (/^requirementdiagram\b/.test(firstLine)) return 'requirement'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -325,6 +330,12 @@ function renderDiagramBody(
       diagram.valueFormat ??= metaConfig.treemap?.valueFormat
       const positioned = layoutTreemap(diagram, options)
       return renderTreemapSvg(positioned, colors, font, transparent)
+    }
+    case 'requirement': {
+      const diagram = parseRequirementDiagram(lines)
+      diagram.title ??= meta.title
+      const positioned = layoutRequirementDiagram(diagram, options)
+      return renderRequirementSvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {
