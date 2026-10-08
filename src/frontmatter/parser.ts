@@ -270,6 +270,10 @@ function applySetting(
       config.timeline = { ...config.timeline, disableMulticolor: isTrue(value) }
       return
     }
+    if (scope.includes('kanban') && key === 'showids') {
+      config.kanban = { ...config.kanban, showIds: isTrue(value) }
+      return
+    }
   }
 
   const role = THEME_VARIABLE_MAP[key]
@@ -282,6 +286,7 @@ function applySetting(
 function mergeConfig(target: FrontmatterConfig, source: FrontmatterConfig): void {
   if (source.pie) target.pie = { ...target.pie, ...source.pie }
   if (source.timeline) target.timeline = { ...target.timeline, ...source.timeline }
+  if (source.kanban) target.kanban = { ...target.kanban, ...source.kanban }
 }
 
 /** YAML-ish truthiness, so `true`, `yes` and `1` all read as enabled. */

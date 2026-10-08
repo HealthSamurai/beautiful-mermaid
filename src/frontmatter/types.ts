@@ -43,6 +43,8 @@ export interface FrontmatterResult {
  *       textPosition: 0.6
  *     timeline:
  *       disableMulticolor: true
+ *     kanban:
+ *       showIds: true
  */
 export interface FrontmatterConfig {
   pie?: {
@@ -55,6 +57,10 @@ export interface FrontmatterConfig {
   timeline?: {
     /** Draw every section in the theme accent instead of one colour each */
     disableMulticolor?: boolean
+  }
+  kanban?: {
+    /** Show each card's id as a chip under its text */
+    showIds?: boolean
   }
 }
 
