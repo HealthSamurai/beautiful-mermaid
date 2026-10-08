@@ -17,6 +17,7 @@
 //   - Quadrant charts (quadrantChart)
 //   - Mindmaps (mindmap)
 //   - Sankey diagrams (sankey / sankey-beta)
+//   - Git graphs (gitGraph)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -74,12 +75,15 @@ import { renderMindmapSvg } from './mindmap/renderer.ts'
 import { parseSankeyDiagram } from './sankey/parser.ts'
 import { layoutSankey } from './sankey/layout.ts'
 import { renderSankeySvg } from './sankey/renderer.ts'
+import { parseGitGraphDiagram } from './gitgraph/parser.ts'
+import { layoutGitGraph } from './gitgraph/layout.ts'
+import { renderGitGraphSvg } from './gitgraph/renderer.ts'
 
 /**
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -90,6 +94,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^quadrantchart\b/.test(firstLine)) return 'quadrant'
   if (/^mindmap\b/.test(firstLine)) return 'mindmap'
   if (/^sankey(-beta)?\b/.test(firstLine)) return 'sankey'
+  if (/^gitgraph\b/.test(firstLine)) return 'gitgraph'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -217,6 +222,11 @@ export function renderMermaidSVG(
       const diagram = parseSankeyDiagram(text)
       const positioned = layoutSankey(diagram, options)
       return renderSankeySvg(positioned, colors, font, transparent)
+    }
+    case 'gitgraph': {
+      const diagram = parseGitGraphDiagram(lines)
+      const positioned = layoutGitGraph(diagram, options)
+      return renderGitGraphSvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {
