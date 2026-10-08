@@ -41,7 +41,9 @@
     "quadrant",
     "mindmap",
     "sankey",
-    "gitgraph"
+    "gitgraph",
+    "block-diagram",
+    "radar-chart"
   ],
   "author": "Craft Docs",
   "files": [

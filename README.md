@@ -37,8 +37,9 @@ The ASCII rendering engine is based on [mermaid-ascii](https://github.com/Alexan
 
 ## Features
 
-- **14 diagram types** — Flowcharts, State, Sequence, Class, ER, XY Charts (bar, line, combined), Gantt, Timeline, Pie, User Journey, Quadrant, Mindmap, Sankey, and Git Graph
-- **Frontmatter & init directives** — YAML frontmatter and `%%{init: ...}%%` are parsed for titles and theme colors
+- **16 diagram types** — Flowcharts, State, Sequence, Class, ER, XY Charts (bar, line, combined), Gantt, Timeline, Pie, User Journey, Quadrant, Mindmap, Sankey, Git Graph, Block, and Radar
+- **Frontmatter & init directives** — YAML frontmatter and `%%{init: ...}%%` are parsed for titles, theme colors and per-diagram config
+- **Accessible output** — `accTitle` / `accDescr` become the SVG `<title>` and `<desc>`
 - **Dual output** — SVG for rich UIs, ASCII/Unicode for terminals
 - **Synchronous rendering** — No async, no flash. Works with React `useMemo()`
 - **15 built-in themes** — And dead simple to add your own
@@ -457,15 +458,25 @@ gantt
 - `dateFormat` — how task dates are written (`YYYY-MM-DD`, `DD/MM/YYYY`, `YYYY-MM`, `YYYY-MM-DD HH:mm:ss`, …). Defaults to `YYYY-MM-DD`
 - `axisFormat` — d3-style axis labels: `%Y %y %m %b %B %d %e %H %M %S %q %%`. Chosen automatically from the span when omitted
 - `section` — groups the tasks that follow
-- `excludes`, `includes`, `todayMarker`, `tickInterval`, `weekday` — accepted and ignored
+- `excludes` — non-working days: `weekends`, a weekday name, or a date. A task whose end comes from a **duration** is stretched past them so it keeps its intended number of working days; a task with an explicit end date keeps that date
+- `includes` — dates that override an exclusion
+- `weekend friday | saturday` — which two days `excludes weekends` means
+- `weekday monday` … `sunday` — first day of the week, which moves the weekly gridlines
+- `tickInterval` — `1day`, `2week`, `3month`; ticks snap to natural calendar boundaries
+- `todayMarker` — `off` to hide it, or an inline style like `stroke:red,stroke-width:3px`
+- `displayMode compact` — non-overlapping tasks in a section share a row
+- `inclusiveEndDates` — an explicit end date counts as a full day
+- `topAxis` — repeat the time axis below the plot
 
 **Task syntax** — `Label : metadata`, where metadata is a comma-separated list of `[tag...] [id] [start] [end|duration]`:
 
 - **Tags** — `done`, `active`, `crit`, `milestone`. `crit` wins over `active`, which wins over `done`
 - **Id** — any bare word; referenced by later `after` clauses. Auto-generated as `task<N>` when omitted
 - **Start** — an absolute date, or `after <id> [<id>...]` to begin when those tasks finish. A task with neither chains onto the previous one
-- **End** — an absolute date, or a duration: `30d`, `2w`, `12h`, `6mo` (`M` also works), `1y`
+- **End** — an absolute date, a duration (`30d`, `2w`, `12h`, `6mo` — `M` also works — `1y`), or `until <id> [<id>...]` to end when the earliest of those tasks begins
+- **Progress** — a trailing `60%` draws a completed portion over the bar
 - **Milestones** — `:milestone` collapses the task to a single instant and draws a diamond
+- **Vertical markers** — `:vert` draws the task as a labelled line across the whole chart instead of a bar
 
 Each bar carries `data-task`, `data-start` and `data-end` attributes plus a `<title>` tooltip. Status colors derive from the theme accent, so bars re-color with the theme.
 
@@ -673,11 +684,71 @@ Explicit `RenderOptions` always win over in-diagram metadata — the host page k
 
 ---
 
+### Block Diagrams
+
+Blocks placed on a grid by hand — using Mermaid's `block-beta` syntax.
+
+```
+block-beta
+  columns 3
+  frontend["Frontend"]
+  gateway["API Gateway"]
+  cache(("Cache"))
+  block:services["Services"]
+    columns 2
+    auth["Auth"]
+    billing["Billing"]
+  end
+  router{"Router"}
+  db[("Postgres")]
+  frontend --> gateway
+  gateway -- "rpc" --> services
+```
+
+- `columns N` / `columns auto` — slots per row; without it every block shares one row
+- **Shapes** — `[square]`, `(round)`, `((circle))`, `(((double)))`, `{diamond}`, `{{hexagon}}`, `([stadium])`, `[[subroutine]]`, `[(cylinder)]`, `[/lean right/]`, `[\lean left\]`, `[/trapezoid\]`, `[\inv trapezoid/]`
+- **Column spans** — `two["Two slots"]:2`
+- `space` / `space:2` — a deliberate gap in the grid
+- `block ... end` — a composite; `block:myId["Title"] ... end` gives it a name and a title, and it may hold its own `columns`
+- **Arrow blocks** — `blockArrow<["label"]>(right)`, or several directions for a double-headed arrow
+- **Edges** — `-->`, `==>` (thick), `-.->` (dotted), `<-->`, with `-- "label" -->` and chains like `A --> B --> C`
+- `classDef`, `class` and `style` statements, plus the `:::className` shorthand
+
+Placement is authored, not derived: unlike a flowchart, the edges never move anything — they are routed between wherever the grid put the blocks. Each nesting depth takes its own palette colour, and a label too long to widen its block wraps instead.
+
+---
+
+### Radar Charts
+
+Several series compared across shared axes — using Mermaid's `radar-beta` syntax.
+
+```
+radar-beta
+  title Capability
+  axis speed["Speed"], power["Power"], range["Range"], cost["Cost"]
+  curve proto["Prototype"]{3, 4, 2, 5}
+  curve shipped["Shipped"]{5, 2, 4, 1}
+  graticule polygon
+  ticks 5
+```
+
+- `axis A, B, C` — ids only, or `axis A["Axis A"], B["Axis B"]` with labels; several `axis` lines accumulate
+- `curve name{1, 2, 3}` — one value per axis, in axis order
+- `curve name["Label"]{ C: 3, A: 1, B: 2 }` — keyed by axis name, so the order does not matter and a missing axis reads as the minimum
+- `ticks N` — grid rings (capped at 32, since a huge count is a denial of service)
+- `graticule circle | polygon` — round rings or straight-sided ones; the curves follow suit
+- `min` / `max` — the scale; without `max` it comes from the data
+- `showLegend false` — drop the legend
+
+The first declared axis points straight up and the rest are spread evenly, which is what makes two radar charts of the same data comparable at a glance. Each curve takes its own palette index, so a radar and an XY chart of the same series agree on colour.
+
+---
+
 ## ASCII Output
 
 For terminal environments, CLI tools, or anywhere you need plain text, render to ASCII or Unicode box-drawing characters:
 
-> Gantt, timeline, pie, journey, quadrant, mindmap, sankey and git graph diagrams are SVG-only — their value is proportional geometry (a time axis, an angle, a score curve, a position in the unit square) that does not survive a character grid, so `renderMermaidASCII()` throws a clear error for them.
+> Gantt, timeline, pie, journey, quadrant, mindmap, sankey, git graph, block and radar diagrams are SVG-only — their value is proportional geometry (a time axis, an angle, a score curve, a position in the unit square) that does not survive a character grid, so `renderMermaidASCII()` throws a clear error for them.
 
 ```typescript
 import { renderMermaidASCII } from 'beautiful-mermaid'

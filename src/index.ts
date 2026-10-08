@@ -19,6 +19,7 @@
 //   - Sankey diagrams (sankey / sankey-beta)
 //   - Git graphs (gitGraph)
 //   - Block diagrams (block-beta)
+//   - Radar charts (radar-beta)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -79,6 +80,9 @@ import { renderSankeySvg } from './sankey/renderer.ts'
 import { parseGitGraphDiagram } from './gitgraph/parser.ts'
 import { layoutGitGraph } from './gitgraph/layout.ts'
 import { renderGitGraphSvg } from './gitgraph/renderer.ts'
+import { parseRadarDiagram } from './radar/parser.ts'
+import { layoutRadar } from './radar/layout.ts'
+import { renderRadarSvg } from './radar/renderer.ts'
 import { parseBlockDiagram } from './block/parser.ts'
 import { layoutBlockDiagram } from './block/layout.ts'
 import { renderBlockSvg } from './block/renderer.ts'
@@ -90,7 +94,7 @@ import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -103,6 +107,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^sankey(-beta)?\b/.test(firstLine)) return 'sankey'
   if (/^gitgraph\b/.test(firstLine)) return 'gitgraph'
   if (/^block(-beta)?\b/.test(firstLine)) return 'block'
+  if (/^radar(-beta)?\b/.test(firstLine)) return 'radar'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -285,6 +290,12 @@ function renderDiagramBody(
       diagram.title ??= meta.title
       const positioned = layoutBlockDiagram(diagram, options)
       return renderBlockSvg(positioned, colors, font, transparent)
+    }
+    case 'radar': {
+      const diagram = parseRadarDiagram(lines)
+      diagram.title ??= meta.title
+      const positioned = layoutRadar(diagram, options)
+      return renderRadarSvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {
