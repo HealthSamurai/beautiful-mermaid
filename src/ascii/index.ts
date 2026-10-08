@@ -60,7 +60,7 @@ export interface AsciiRenderOptions {
  * Detect the diagram type from the mermaid source text.
  * Mirrors the detection logic in src/index.ts for the SVG renderer.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' {
   const firstLine = text.trim().split('\n')[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -70,6 +70,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^journey\b/.test(firstLine)) return 'journey'
   if (/^quadrantchart\b/.test(firstLine)) return 'quadrant'
   if (/^mindmap\b/.test(firstLine)) return 'mindmap'
+  if (/^sankey(-beta)?\b/.test(firstLine)) return 'sankey'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -149,6 +150,7 @@ export function renderMermaidASCII(
     case 'journey':
     case 'quadrant':
     case 'mindmap':
+    case 'sankey':
       throw new Error(
         `ASCII rendering is not supported for ${diagramType} diagrams. ` +
         `Use renderMermaidSVG() instead.`

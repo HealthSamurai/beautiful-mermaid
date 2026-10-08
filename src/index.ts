@@ -16,6 +16,7 @@
 //   - User journeys (journey)
 //   - Quadrant charts (quadrantChart)
 //   - Mindmaps (mindmap)
+//   - Sankey diagrams (sankey / sankey-beta)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -70,12 +71,15 @@ import { renderQuadrantSvg } from './quadrant/renderer.ts'
 import { parseMindmapDiagram } from './mindmap/parser.ts'
 import { layoutMindmap } from './mindmap/layout.ts'
 import { renderMindmapSvg } from './mindmap/renderer.ts'
+import { parseSankeyDiagram } from './sankey/parser.ts'
+import { layoutSankey } from './sankey/layout.ts'
+import { renderSankeySvg } from './sankey/renderer.ts'
 
 /**
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -85,6 +89,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^journey\b/.test(firstLine)) return 'journey'
   if (/^quadrantchart\b/.test(firstLine)) return 'quadrant'
   if (/^mindmap\b/.test(firstLine)) return 'mindmap'
+  if (/^sankey(-beta)?\b/.test(firstLine)) return 'sankey'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -205,6 +210,13 @@ export function renderMermaidSVG(
       const diagram = parseMindmapDiagram(text)
       const positioned = layoutMindmap(diagram, options)
       return renderMindmapSvg(positioned, colors, font, transparent)
+    }
+    case 'sankey': {
+      // A quoted CSV field may contain a `%%` sequence, so the sankey parser
+      // takes raw text rather than the comment-stripped lines.
+      const diagram = parseSankeyDiagram(text)
+      const positioned = layoutSankey(diagram, options)
+      return renderSankeySvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {
