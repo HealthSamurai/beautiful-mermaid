@@ -37,7 +37,8 @@ The ASCII rendering engine is based on [mermaid-ascii](https://github.com/Alexan
 
 ## Features
 
-- **8 diagram types** — Flowcharts, State, Sequence, Class, ER, XY Charts (bar, line, combined), Gantt, and Timeline
+- **14 diagram types** — Flowcharts, State, Sequence, Class, ER, XY Charts (bar, line, combined), Gantt, Timeline, Pie, User Journey, Quadrant, Mindmap, Sankey, and Git Graph
+- **Frontmatter & init directives** — YAML frontmatter and `%%{init: ...}%%` are parsed for titles and theme colors
 - **Dual output** — SVG for rich UIs, ASCII/Unicode for terminals
 - **Synchronous rendering** — No async, no flash. Works with React `useMemo()`
 - **15 built-in themes** — And dead simple to add your own
@@ -497,11 +498,186 @@ Event text wraps automatically to the card width (up to 4 lines) using the built
 
 ---
 
+### Pie Charts
+
+Proportional slices with a legend — using Mermaid's `pie` syntax.
+
+```
+pie showData
+    title Animal adoption
+    "Dogs" : 386
+    "Cats" : 85
+    "Rats" : 15
+```
+
+- `pie` / `pie showData` — `showData` appends the raw value to each legend entry
+- `title` — on the header line or its own line
+- **Slices** — `"label" : value`, quoted label and a non-negative number (decimals allowed)
+- `accTitle:` / `accDescr:` — accepted and ignored, including the multi-line `accDescr { ... }` form
+
+Slices keep their declaration order, which decides both the sweep direction and the palette index. Negative values are rejected with the same error Mermaid raises. Percentage labels are placed inside each wedge and dropped for slices too thin to hold them.
+
+---
+
+### User Journeys
+
+Satisfaction scores across the steps of an experience — using Mermaid's `journey` syntax.
+
+```
+journey
+    title My working day
+    section Go to work
+      Make tea: 5: Me
+      Go upstairs: 3: Me
+      Do work: 1: Me, Cat
+    section Go home
+      Go downstairs: 5: Me
+      Sit down: 5: Me
+```
+
+- `title` — diagram heading
+- `section` — groups the tasks of one phase; each section gets its own color from the theme palette
+- **Tasks** — `label : score : people`, where score is 1-5 and people are comma-separated
+- **Score only** — `label : score` is fine; the people row is simply omitted
+
+The marker height encodes the score, and a polyline through the markers shows the experience curve — the point of the diagram. Scores outside 1-5 are clamped onto the scale.
+
+---
+
+### Quadrant Charts
+
+Labelled points scattered in the unit square — using Mermaid's `quadrantChart` syntax.
+
+```
+quadrantChart
+    title Reach and engagement of campaigns
+    x-axis Low Reach --> High Reach
+    y-axis Low Engagement --> High Engagement
+    quadrant-1 We should expand
+    quadrant-2 Need to promote
+    quadrant-3 Re-evaluate
+    quadrant-4 May be improved
+    Campaign A: [0.3, 0.6]
+    Campaign B: [0.45, 0.23]
+```
+
+- `x-axis` / `y-axis` — `start --> end`; the second end is optional
+- `quadrant-1` .. `quadrant-4` — Mermaid's anticlockwise numbering: 1 top-right, 2 top-left, 3 bottom-left, 4 bottom-right
+- **Points** — `label: [x, y]` with both coordinates in 0..1
+- **Quoted labels** — `"Point: with a colon": [1, 0]`
+- **Classes and styles** — `label:::className: [x, y] radius: 10, color: #ff0000`
+
+Coordinates outside 0..1 are rejected, as are malformed style values, with the same messages Mermaid uses. Per-point `radius`, `color`, `stroke-color` and `stroke-width` are applied inline; unstyled points stay fully theme-driven.
+
+---
+
+### Mindmaps
+
+An indentation-nested tree — using Mermaid's `mindmap` syntax.
+
+```
+mindmap
+  root((mindmap))
+    Origins
+      Long history
+      Popularisation
+        British popular psychology author Tony Buzan
+    Research
+      On effectiveness<br/>and features
+    Tools
+      Pen and paper
+      Mermaid
+```
+
+- **Nesting comes from indentation**, not from explicit edges
+- **Shapes** — `[rect]`, `(rounded)`, `((circle))`, `)cloud(`, `))bang((`, `{{hexagon}}`, or bare text for the default
+- **Ids** — text before the bracket pair is the id: `theId(label)`
+- **Quoted labels** — `root["String containing []"]` for labels with brackets in them
+- `::icon(name)` and `:::class1 class2` — attach to the node declared above them
+
+Layout is a tidy tree: depth sets the column, each subtree reserves rows for its leaves, and parents are centred on their children. Each top-level branch owns a palette index so a branch reads as one color family. Exactly one root is allowed, matching Mermaid.
+
+---
+
+### Sankey Diagrams
+
+Flow ribbons whose thickness is proportional to their value — using Mermaid's `sankey` syntax.
+
+```
+sankey-beta
+Coal,Electricity,120
+Gas,Electricity,80
+Electricity,Homes,100
+Electricity,Industry,100
+```
+
+- `sankey` or `sankey-beta` — both headers work
+- **Links** — CSV rows of exactly `source,target,value`
+- **Quoting** — a double-quoted field may contain commas, and `""` is a literal quote: `"""Wind""",Electricity grid,289.366`
+- **Nodes are implicit** — a node exists because a link mentions it, and keeps its first-appearance order
+
+Columns are assigned by longest path from a source, so a node always sits right of everything feeding it. Bars are sized from `max(inflow, outflow)` and ribbon offsets accumulate per node, so the ribbons entering or leaving a bar exactly fill it. Malformed rows are skipped rather than fatal.
+
+---
+
+### Git Graphs
+
+A commit history with branches, merges and cherry-picks — using Mermaid's `gitGraph` syntax.
+
+```
+gitGraph
+    commit id: "init"
+    commit id: "second"
+    branch develop
+    checkout develop
+    commit id: "feature-a"
+    checkout main
+    merge develop tag: "v1.0"
+    commit type: HIGHLIGHT
+```
+
+- `gitGraph`, `gitGraph:`, `gitGraph TB:` / `BT:` / `LR:` — direction defaults to `LR`
+- `commit` — options in any order: `id:`, `msg:`, `tag:`, `type:` (`NORMAL`, `REVERSE`, `HIGHLIGHT`)
+- `commit "a message"` — message shorthand
+- `branch <name> [order: N]` — creates the branch but does **not** check it out
+- `checkout <name>` / `switch <name>` — moves HEAD
+- `merge <branch> [id:] [tag:] [type:]` — two parents, lands on the current branch
+- `cherry-pick id:"X" [parent:"P"] [tag:"T"]` — records provenance in the tag when no explicit tag is given
+
+Parsing is a replay, not a transcription: `commit` means "append to whatever branch is checked out". Each used branch gets its own lane and palette color; commit nodes are drawn per type — dot, ring for a merge, crossed out for a reverse, cherry with a stalk for a cherry-pick.
+
+---
+
+### Frontmatter and Init Directives
+
+YAML frontmatter and `%%{init: ...}%%` directives are stripped before the diagram is parsed, and the parts this library can honour are applied.
+
+```
+---
+title: Quarterly revenue
+config:
+  themeVariables:
+    primaryColor: "#ff0000"
+    background: "#1a1b26"
+---
+pie
+    "Direct" : 60
+    "Partners" : 40
+```
+
+- `title:` — used when the diagram body does not set its own title
+- `theme:` — the built-in names (`dark`, `neutral`, `forest`, `base`, `default`) act as a bg/fg baseline
+- `themeVariables:` — `background`, `primaryColor`, `primaryTextColor`, `primaryBorderColor`, `lineColor`, `secondaryColor`, `tertiaryColor`, `textColor`, `mainBkg` and `nodeBorder` map onto this library's color roles
+
+Explicit `RenderOptions` always win over in-diagram metadata — the host page knows its own theme, the diagram author only guessed at it. Theme variables with no honest equivalent here are dropped rather than half-applied, and values that could break out of a style attribute are rejected.
+
+---
+
 ## ASCII Output
 
 For terminal environments, CLI tools, or anywhere you need plain text, render to ASCII or Unicode box-drawing characters:
 
-> Gantt and timeline diagrams are SVG-only — their proportional time axis does not survive a character grid, so `renderMermaidASCII()` throws a clear error for them.
+> Gantt, timeline, pie, journey, quadrant, mindmap, sankey and git graph diagrams are SVG-only — their value is proportional geometry (a time axis, an angle, a score curve, a position in the unit square) that does not survive a character grid, so `renderMermaidASCII()` throws a clear error for them.
 
 ```typescript
 import { renderMermaidASCII } from 'beautiful-mermaid'

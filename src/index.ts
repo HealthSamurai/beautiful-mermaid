@@ -78,6 +78,8 @@ import { renderSankeySvg } from './sankey/renderer.ts'
 import { parseGitGraphDiagram } from './gitgraph/parser.ts'
 import { layoutGitGraph } from './gitgraph/layout.ts'
 import { renderGitGraphSvg } from './gitgraph/renderer.ts'
+import { parseFrontmatter } from './frontmatter/parser.ts'
+import type { FrontmatterColors } from './frontmatter/types.ts'
 
 /**
  * Detect the diagram type from the mermaid source text.
@@ -108,15 +110,15 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
  * Uses DEFAULTS for bg/fg when not provided, and passes through
  * optional enrichment colors (line, accent, muted, surface, border).
  */
-function buildColors(options: RenderOptions): DiagramColors {
+function buildColors(options: RenderOptions, metaColors: FrontmatterColors = {}): DiagramColors {
   return {
-    bg: options.bg ?? DEFAULTS.bg,
-    fg: options.fg ?? DEFAULTS.fg,
-    line: options.line,
-    accent: options.accent,
-    muted: options.muted,
-    surface: options.surface,
-    border: options.border,
+    bg: options.bg ?? metaColors.bg ?? DEFAULTS.bg,
+    fg: options.fg ?? metaColors.fg ?? DEFAULTS.fg,
+    line: options.line ?? metaColors.line,
+    accent: options.accent ?? metaColors.accent,
+    muted: options.muted ?? metaColors.muted,
+    surface: options.surface ?? metaColors.surface,
+    border: options.border ?? metaColors.border,
   }
 }
 
@@ -156,7 +158,15 @@ export function renderMermaidSVG(
   // Without this, escapeXml() double-encodes them: &lt; → &amp;lt; → literal "&lt;" in SVG.
   text = decodeXML(text)
 
-  const colors = buildColors(options)
+  // Strip YAML frontmatter and %%{init: ...}%% directives before anything
+  // else looks at the text, so every diagram type gets a clean body and the
+  // metadata is honoured once, in one place.
+  const meta = parseFrontmatter(text)
+  text = meta.body
+
+  // Explicit RenderOptions win over in-diagram metadata: the host page knows
+  // its own theme, the diagram author only guessed at it.
+  const colors = buildColors(options, meta.colors)
   const font = options.font ?? 'Inter'
   const transparent = options.transparent ?? false
   const diagramType = detectDiagramType(text)
@@ -181,31 +191,37 @@ export function renderMermaidSVG(
     }
     case 'xychart': {
       const chart = parseXYChart(lines)
+      chart.title ??= meta.title
       const positioned = layoutXYChart(chart, options)
       return renderXYChartSvg(positioned, colors, font, transparent, options.interactive ?? false)
     }
     case 'gantt': {
       const diagram = parseGanttDiagram(lines)
+      diagram.title ??= meta.title
       const positioned = layoutGantt(diagram, options)
       return renderGanttSvg(positioned, colors, font, transparent)
     }
     case 'timeline': {
       const diagram = parseTimelineDiagram(lines)
+      diagram.title ??= meta.title
       const positioned = layoutTimeline(diagram, options)
       return renderTimelineSvg(positioned, colors, font, transparent)
     }
     case 'pie': {
       const diagram = parsePieDiagram(lines)
+      diagram.title ??= meta.title
       const positioned = layoutPie(diagram, options)
       return renderPieSvg(positioned, colors, font, transparent)
     }
     case 'journey': {
       const diagram = parseJourneyDiagram(lines)
+      diagram.title ??= meta.title
       const positioned = layoutJourney(diagram, options)
       return renderJourneySvg(positioned, colors, font, transparent)
     }
     case 'quadrant': {
       const diagram = parseQuadrantDiagram(lines)
+      diagram.title ??= meta.title
       const positioned = layoutQuadrant(diagram, options)
       return renderQuadrantSvg(positioned, colors, font, transparent)
     }
@@ -225,6 +241,7 @@ export function renderMermaidSVG(
     }
     case 'gitgraph': {
       const diagram = parseGitGraphDiagram(lines)
+      diagram.title ??= meta.title
       const positioned = layoutGitGraph(diagram, options)
       return renderGitGraphSvg(positioned, colors, font, transparent)
     }

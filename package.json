@@ -35,10 +35,21 @@
     "timeline",
     "state-diagram",
     "visualization",
-    "theming"
+    "theming",
+    "pie",
+    "journey",
+    "quadrant",
+    "mindmap",
+    "sankey",
+    "gitgraph"
   ],
   "author": "Craft Docs",
-  "files": ["src/", "dist/", "LICENSE", "README.md"],
+  "files": [
+    "src/",
+    "dist/",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "test": "bun test src/__tests__/",
     "samples": "bun run index.ts",
