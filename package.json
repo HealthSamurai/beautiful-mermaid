@@ -31,6 +31,8 @@
     "class-diagram",
     "er-diagram",
     "xychart",
+    "gantt",
+    "timeline",
     "state-diagram",
     "visualization",
     "theming"

@@ -291,3 +291,14 @@ describe('timeline – degenerate input', () => {
     expect(p.connectors).toHaveLength(1)
   })
 })
+
+// ============================================================================
+// ASCII renderer boundary
+// ============================================================================
+
+describe('timeline – ascii', () => {
+  it('reports that ASCII rendering is unsupported, not a bad header', async () => {
+    const { renderMermaidASCII } = await import('../ascii/index.ts')
+    expect(() => renderMermaidASCII(SIMPLE)).toThrow(/ASCII rendering is not supported for timeline/)
+  })
+})

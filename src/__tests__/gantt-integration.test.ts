@@ -259,3 +259,14 @@ describe('gantt – layout', () => {
     expect(p.bars[1]!.width).toBeGreaterThanOrEqual(4)
   })
 })
+
+// ============================================================================
+// ASCII renderer boundary
+// ============================================================================
+
+describe('gantt – ascii', () => {
+  it('reports that ASCII rendering is unsupported, not a bad header', async () => {
+    const { renderMermaidASCII } = await import('../ascii/index.ts')
+    expect(() => renderMermaidASCII(SIMPLE)).toThrow(/ASCII rendering is not supported for gantt/)
+  })
+})

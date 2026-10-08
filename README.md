@@ -37,7 +37,7 @@ The ASCII rendering engine is based on [mermaid-ascii](https://github.com/Alexan
 
 ## Features
 
-- **6 diagram types** — Flowcharts, State, Sequence, Class, ER, and XY Charts (bar, line, combined)
+- **8 diagram types** — Flowcharts, State, Sequence, Class, ER, XY Charts (bar, line, combined), Gantt, and Timeline
 - **Dual output** — SVG for rich UIs, ASCII/Unicode for terminals
 - **Synchronous rendering** — No async, no flash. Works with React `useMemo()`
 - **15 built-in themes** — And dead simple to add your own
@@ -432,9 +432,76 @@ The chart renderer follows a clean, minimal design philosophy inspired by Apple 
 
 ---
 
+### Gantt Charts
+
+Project schedules with sections, task statuses, durations and dependencies — using Mermaid's `gantt` syntax.
+
+```
+gantt
+    title Project plan
+    dateFormat YYYY-MM-DD
+    axisFormat %b %Y
+    section Design
+    Research   :done, res1, 2024-01-01, 30d
+    Wireframes :done, wf1, after res1, 2w
+    section Build
+    Backend    :active, be1, 2024-03-01, 2024-06-15
+    Frontend   :crit, fe1, after be1, 45d
+    Launch     :milestone, m1, 2024-08-01, 0d
+```
+
+**Directives:**
+
+- `title` — diagram heading
+- `dateFormat` — how task dates are written (`YYYY-MM-DD`, `DD/MM/YYYY`, `YYYY-MM`, `YYYY-MM-DD HH:mm:ss`, …). Defaults to `YYYY-MM-DD`
+- `axisFormat` — d3-style axis labels: `%Y %y %m %b %B %d %e %H %M %S %q %%`. Chosen automatically from the span when omitted
+- `section` — groups the tasks that follow
+- `excludes`, `includes`, `todayMarker`, `tickInterval`, `weekday` — accepted and ignored
+
+**Task syntax** — `Label : metadata`, where metadata is a comma-separated list of `[tag...] [id] [start] [end|duration]`:
+
+- **Tags** — `done`, `active`, `crit`, `milestone`. `crit` wins over `active`, which wins over `done`
+- **Id** — any bare word; referenced by later `after` clauses. Auto-generated as `task<N>` when omitted
+- **Start** — an absolute date, or `after <id> [<id>...]` to begin when those tasks finish. A task with neither chains onto the previous one
+- **End** — an absolute date, or a duration: `30d`, `2w`, `12h`, `6mo` (`M` also works), `1y`
+- **Milestones** — `:milestone` collapses the task to a single instant and draws a diamond
+
+Each bar carries `data-task`, `data-start` and `data-end` attributes plus a `<title>` tooltip. Status colors derive from the theme accent, so bars re-color with the theme.
+
+---
+
+### Timelines
+
+Chronological events grouped into periods — using Mermaid's `timeline` syntax.
+
+```
+timeline
+    title History of Social Media
+    section Early days
+        2002 : LinkedIn
+        2004 : Facebook : Google
+    section Mobile era
+        2006 : Twitter : Launched as a side project at Odeo
+        2010 : Instagram
+```
+
+- `title` — diagram heading
+- `section` — groups the periods that follow; each section gets its own color from the theme palette
+- **Periods** — `Label : event : event ...`. The text before the first colon is the period, each remaining chunk is one event card
+- **Continuation** — a line starting with `:` appends more events to the previous period, for wrapping long lists
+- **Periods without events** — a bare label line draws just the marker
+
+**Orientation:** `timeline` lays periods out left to right with events hanging below (the Mermaid default). `timeline vertical` runs the axis down the left with period labels in a gutter and event cards to the right — useful for long event lists that would otherwise overflow horizontally.
+
+Event text wraps automatically to the card width (up to 4 lines) using the built-in text metrics — no DOM measurement needed.
+
+---
+
 ## ASCII Output
 
 For terminal environments, CLI tools, or anywhere you need plain text, render to ASCII or Unicode box-drawing characters:
+
+> Gantt and timeline diagrams are SVG-only — their proportional time axis does not survive a character grid, so `renderMermaidASCII()` throws a clear error for them.
 
 ```typescript
 import { renderMermaidASCII } from 'beautiful-mermaid'
@@ -520,6 +587,8 @@ Render a Mermaid diagram to SVG. Synchronous. Auto-detects diagram type.
 | `interactive` | `boolean` | `false` | Enable hover tooltips on XY chart bars and data points |
 
 **XY Charts:** Diagrams starting with `xychart-beta` are auto-detected — no separate function needed. The `accent` color option drives the chart series color palette.
+
+**Gantt & Timeline:** Diagrams starting with `gantt` or `timeline` are auto-detected too. The `accent` color option drives gantt task statuses and timeline section colors.
 
 ### `renderMermaidSVGAsync(text, options?): Promise<string>`
 
