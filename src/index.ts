@@ -13,6 +13,7 @@
 //   - Gantt charts (gantt)
 //   - Timelines (timeline)
 //   - Pie charts (pie)
+//   - User journeys (journey)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -58,18 +59,22 @@ import { renderTimelineSvg } from './timeline/renderer.ts'
 import { parsePieDiagram } from './pie/parser.ts'
 import { layoutPie } from './pie/layout.ts'
 import { renderPieSvg } from './pie/renderer.ts'
+import { parseJourneyDiagram } from './journey/parser.ts'
+import { layoutJourney } from './journey/layout.ts'
+import { renderJourneySvg } from './journey/renderer.ts'
 
 /**
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
   if (/^gantt\b/.test(firstLine)) return 'gantt'
   if (/^timeline\b/.test(firstLine)) return 'timeline'
   if (/^pie\b/.test(firstLine)) return 'pie'
+  if (/^journey\b/.test(firstLine)) return 'journey'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -173,6 +178,11 @@ export function renderMermaidSVG(
       const diagram = parsePieDiagram(lines)
       const positioned = layoutPie(diagram, options)
       return renderPieSvg(positioned, colors, font, transparent)
+    }
+    case 'journey': {
+      const diagram = parseJourneyDiagram(lines)
+      const positioned = layoutJourney(diagram, options)
+      return renderJourneySvg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {

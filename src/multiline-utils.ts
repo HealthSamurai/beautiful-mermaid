@@ -12,12 +12,16 @@ import { LINE_HEIGHT_RATIO } from './text-metrics.ts'
  * Normalize label text: strip surrounding quotes, convert <br> tags and
  * literal \n sequences to newline characters. Strips unsupported HTML tags
  * but preserves formatting tags (<b>, <i>, <u>, <s>) for SVG rendering.
+ *
+ * Every <br> spelling Mermaid tolerates maps to a newline, including the
+ * malformed ones its own test fixtures use: <br>, <br/>, <br />, </br>,
+ * </br /> and <br\t/>.
  */
 export function normalizeBrTags(label: string): string {
   // Strip surrounding double quotes (Mermaid uses them for special chars in labels)
   const unquoted = label.startsWith('"') && label.endsWith('"') ? label.slice(1, -1) : label
   return unquoted
-    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\s*\/?\s*br\s*\/?\s*>/gi, '\n')
     .replace(/\\n/g, '\n')
     .replace(/<\/?(?:sub|sup|small|mark)\s*>/gi, '')
     // Markdown formatting → HTML tags (order matters: ** before *)
