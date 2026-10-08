@@ -23,6 +23,7 @@
 //   - Kanban boards (kanban)
 //   - Treemaps (treemap-beta)
 //   - Requirement diagrams (requirementDiagram)
+//   - C4 diagrams (C4Context, C4Container, C4Component, C4Dynamic, C4Deployment)
 //
 // Theming uses CSS custom properties (--bg, --fg, + optional enrichment).
 // See src/theme.ts for the full variable system.
@@ -98,6 +99,9 @@ import { renderTreemapSvg } from './treemap/renderer.ts'
 import { parseRequirementDiagram } from './requirement/parser.ts'
 import { layoutRequirementDiagram } from './requirement/layout.ts'
 import { renderRequirementSvg } from './requirement/renderer.ts'
+import { parseC4Diagram } from './c4/parser.ts'
+import { layoutC4Diagram } from './c4/layout.ts'
+import { renderC4Svg } from './c4/renderer.ts'
 import { parseFrontmatter } from './frontmatter/parser.ts'
 import type { FrontmatterColors, FrontmatterConfig } from './frontmatter/types.ts'
 import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
@@ -106,7 +110,7 @@ import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' | 'requirement' {
+function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' | 'requirement' | 'c4' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
@@ -123,6 +127,7 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^kanban\b/.test(firstLine)) return 'kanban'
   if (/^treemap(-beta)?\b/.test(firstLine)) return 'treemap'
   if (/^requirementdiagram\b/.test(firstLine)) return 'requirement'
+  if (/^c4(context|container|component|dynamic|deployment)\b/.test(firstLine)) return 'c4'
   if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
   if (/^classdiagram\s*$/.test(firstLine)) return 'class'
   if (/^erdiagram\s*$/.test(firstLine)) return 'er'
@@ -336,6 +341,12 @@ function renderDiagramBody(
       diagram.title ??= meta.title
       const positioned = layoutRequirementDiagram(diagram, options)
       return renderRequirementSvg(positioned, colors, font, transparent)
+    }
+    case 'c4': {
+      const diagram = parseC4Diagram(lines)
+      diagram.title ??= meta.title
+      const positioned = layoutC4Diagram(diagram, options)
+      return renderC4Svg(positioned, colors, font, transparent)
     }
     case 'flowchart':
     default: {
