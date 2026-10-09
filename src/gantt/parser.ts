@@ -469,23 +469,46 @@ function taskMetaColon(line: string, dateFormat: string): number {
 }
 
 /**
- * True when a metadata tail carries at least one token gantt understands.
+ * True when a metadata tail carries at least one token gantt understands and
+ * no token it cannot account for.
  *
  * A bare id alone does not count: "10:30 standup" would otherwise look like
  * valid metadata and defeat the whole purpose of scanning from the right.
+ *
+ * Every part has to be recognisable, not merely one of them. A `dateFormat`
+ * that carries a clock ("YYYY-MM-DD HH:mm:ss") puts colons inside the date
+ * itself, so a tail cut in the middle of one -- "00, 5d" out of
+ * "2024-02-01 06:30:00, 5d" -- still ends in a valid duration. Accepting it
+ * on that evidence alone split the line inside the timestamp and produced a
+ * task labelled "A :a, 2024-02-01 06:30" starting today. Requiring the
+ * leftover "00" to parse as well rejects the cut, so the scan continues left
+ * to the real separator.
  */
 function looksLikeTaskMeta(tail: string, dateFormat: string): boolean {
   const parts = tail.split(',').map(p => p.trim()).filter(p => p.length > 0)
   if (parts.length === 0) return false
 
-  return parts.some(part => {
+  let known = 0
+
+  for (const part of parts) {
     const lower = part.toLowerCase()
-    if (TAGS.has(lower as GanttTaskTag)) return true
-    if (/^(after|until)\s+\S/i.test(part)) return true
-    if (/^\d+(?:\.\d+)?\s*%$/.test(part)) return true
-    if (isDateLike(part, dateFormat)) return true
-    return isDurationLike(part)
-  })
+    if (
+      TAGS.has(lower as GanttTaskTag) ||
+      /^(after|until)\s+\S/i.test(part) ||
+      /^\d+(?:\.\d+)?\s*%$/.test(part) ||
+      isDateLike(part, dateFormat) ||
+      isDurationLike(part)
+    ) {
+      known++
+      continue
+    }
+    // An id is legal metadata but proves nothing on its own, so it is
+    // tolerated without counting towards the evidence.
+    if (/^[A-Za-z_][\w-]*$/.test(part)) continue
+    return false
+  }
+
+  return known > 0
 }
 
 /** Remove a trailing `%% comment` from a line. */
