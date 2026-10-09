@@ -107,9 +107,6 @@ import type { FrontmatterColors, FrontmatterConfig } from './frontmatter/types.t
 import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
 
 /**
- * Detect the diagram type from the mermaid source text.
- * Returns the type keyword used for routing to the correct pipeline.
- */
 /**
  * Remove a trailing `%% comment` from a single line.
  *
@@ -139,8 +136,45 @@ function stripTrailingComment(line: string): string {
   return line
 }
 
+/**
+ * The first line of a diagram that is not frontmatter, a directive or a
+ * comment — the line whose keyword names the diagram type.
+ *
+ * Returns undefined when the source carries no such line at all.
+ */
+function headerLine(text: string): string | undefined {
+  let rest = text.trim()
+
+  // YAML frontmatter is a `---` fenced block at the very top
+  if (rest.startsWith('---')) {
+    const end = rest.indexOf('\n---', 3)
+    if (end !== -1) {
+      const after = rest.indexOf('\n', end + 1)
+      rest = after === -1 ? '' : rest.slice(after + 1)
+    }
+  }
+
+  for (const raw of rest.split(/[\n;]/)) {
+    const line = raw.trim()
+    // `%%{init}%%` directives and `%%` comments both precede the header
+    if (!line || line.startsWith('%%')) continue
+    return line
+  }
+
+  return undefined
+}
+
+/**
+ * Detect the diagram type from the mermaid source text.
+ * Returns the type keyword used for routing to the correct pipeline.
+ */
 function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' | 'requirement' | 'c4' {
-  const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
+  // The header is the first line that actually declares something: YAML
+  // frontmatter, `%%{init}%%` directives and `%%` comments may all precede it,
+  // and the parsers skip them, so the detector has to skip them too or a
+  // commented-out note above the diagram changes its type.
+  const firstLine = (headerLine(text) ?? '').toLowerCase()
+
 
   if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
   if (/^gantt\b/.test(firstLine)) return 'gantt'
@@ -157,9 +191,11 @@ function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | '
   if (/^treemap(-beta)?\b/.test(firstLine)) return 'treemap'
   if (/^requirementdiagram\b/.test(firstLine)) return 'requirement'
   if (/^c4(context|container|component|dynamic|deployment)\b/.test(firstLine)) return 'c4'
-  if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
-  if (/^classdiagram\s*$/.test(firstLine)) return 'class'
-  if (/^erdiagram\s*$/.test(firstLine)) return 'er'
+  // `classDiagram-v2` is the versioned spelling upstream accepts alongside
+  // `classDiagram`; the `\b` guard still keeps `classDiagramatic` out.
+  if (/^sequencediagram\b/.test(firstLine)) return 'sequence'
+  if (/^classdiagram(-v2)?\b/.test(firstLine)) return 'class'
+  if (/^erdiagram\b/.test(firstLine)) return 'er'
 
   // Default: flowchart/state (handled by parseMermaid internally)
   return 'flowchart'
