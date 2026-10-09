@@ -1,5 +1,5 @@
 import type { MermaidGraph, MermaidNode, MermaidEdge, MermaidSubgraph, Direction, NodeShape, EdgeStyle } from './types.ts'
-import { normalizeBrTags } from './multiline-utils.ts'
+import { isSafeCssValue, normalizeBrTags } from './multiline-utils.ts'
 
 // ============================================================================
 // Mermaid parser — flowcharts and state diagrams
@@ -360,7 +360,15 @@ function ensureStateNode(
 // Shared utilities
 // ============================================================================
 
-/** Parse "fill:#f00,stroke:#333" style property strings into a Record */
+/**
+ * Parse "fill:#f00,stroke:#333" style property strings into a Record.
+ *
+ * Declarations whose value is not a safe CSS value are dropped here rather
+ * than in each renderer: these values reach `fill`/`stroke` attributes, where
+ * a `url(...)` would make every reader of the diagram fetch a remote asset.
+ * Filtering at the parser keeps the single gate for both `classDef` and
+ * `style`, and for the state-diagram parser that shares this helper.
+ */
 function parseStyleProps(propsStr: string): Record<string, string> {
   // Strip trailing semicolons — Mermaid tolerates them (e.g. `stroke:#f00;`)
   const cleaned = propsStr.replace(/;\s*$/, '')
@@ -370,7 +378,7 @@ function parseStyleProps(propsStr: string): Record<string, string> {
     if (colonIdx > 0) {
       const key = pair.slice(0, colonIdx).trim()
       const val = pair.slice(colonIdx + 1).trim()
-      if (key && val) {
+      if (key && val && isSafeCssValue(val)) {
         props[key] = val
       }
     }

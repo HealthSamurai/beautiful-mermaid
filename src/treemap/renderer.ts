@@ -2,7 +2,7 @@ import type { PositionedTreemap, TreemapCell } from './types.ts'
 import type { DiagramColors } from '../theme.ts'
 import { svgOpenTag, buildStyleBlock } from '../theme.ts'
 import { TEXT_BASELINE_SHIFT } from '../styles.ts'
-import { escapeXml } from '../multiline-utils.ts'
+import { escapeXml, safeStyleString } from '../multiline-utils.ts'
 import { CHART_ACCENT_FALLBACK, getSeriesColor } from '../xychart/colors.ts'
 import { TREEMAP_METRICS as T } from './layout.ts'
 
@@ -78,7 +78,8 @@ function renderCell(cell: TreemapCell): string[] {
   ]
   if (cell.classSelector) classes.push(escapeXml(cell.classSelector))
 
-  const style = cell.style ? ` style="${escapeXml(cell.style)}"` : ''
+  const safeStyle = safeStyleString(cell.style)
+  const style = safeStyle ? ` style="${escapeXml(safeStyle)}"` : ''
 
   parts.push(
     `<rect x="${r(cell.x)}" y="${r(cell.y)}" width="${r(cell.width)}" ` +

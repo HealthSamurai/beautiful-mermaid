@@ -38,6 +38,111 @@ export function stripFormattingTags(text: string): string {
   return text.replace(/<\/?(?:b|strong|i|em|u|s|del)\s*>/gi, '')
 }
 
+// ============================================================================
+// CSS value sanitising
+//
+// `classDef`, `style`, `UpdateElementStyle` and friends let a diagram author
+// supply raw CSS values that renderers drop straight into a `fill`/`stroke`
+// attribute or an inline `style=""`. Escaping is not enough there: `fill` is
+// a CSS context, and `url(http://host/x)` in it is a live network request made
+// by every reader who opens the diagram — a tracking pixel at best, and an
+// external reference the page's CSP did not agree to at worst.
+//
+// These slots only ever need a colour, so the filter is a whitelist: colour
+// literals, named colours, and the `var()`/`color-mix()` theme references the
+// renderers themselves emit. Anything containing a url(), an expression(), a
+// quote, a semicolon or a brace is dropped and the caller falls back to its
+// theme default, which degrades to a correctly drawn diagram in default
+// colours rather than a broken or leaky one.
+// ============================================================================
+
+/** CSS constructs that must never appear in a colour slot. */
+const UNSAFE_CSS = /url\s*\(|expression\s*\(|[;{}<>"']|@import|\/\*|\\/i
+
+/**
+ * True when a CSS value is safe to interpolate into a colour-ish attribute.
+ *
+ * Permissive about the *shape* of the value — any identifier, hex colour,
+ * number with a unit, or nested `var()`/`color-mix()`/`rgb()` call passes —
+ * and strict about the constructs above, which can fetch or execute.
+ */
+export function isSafeCssValue(value: string): boolean {
+  const text = value.trim()
+  if (!text || text.length > 200) return false
+  return !UNSAFE_CSS.test(text)
+}
+
+/**
+ * Keep a CSS colour value if it is safe, otherwise return undefined so the
+ * caller can apply its own default.
+ */
+export function safeCssValue(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  return isSafeCssValue(value) ? value : undefined
+}
+
+/**
+ * Drop every unsafe declaration from a parsed style map.
+ *
+ * Returns undefined when nothing survives, so a renderer can treat "no usable
+ * style" and "no style at all" identically.
+ */
+export function safeStyleProps(
+  props: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (!props) return undefined
+  const safe: Record<string, string> = {}
+  for (const [key, value] of Object.entries(props)) {
+    if (isSafeCssValue(value)) safe[key] = value
+  }
+  return Object.keys(safe).length > 0 ? safe : undefined
+}
+
+/**
+ * Filter an inline `style="a:b;c:d"` string down to its safe declarations.
+ * Used by the renderers that carry style as pre-joined text.
+ */
+export function safeStyleString(style: string | undefined): string | undefined {
+  if (!style) return undefined
+  const kept = style
+    .split(';')
+    .map(decl => decl.trim())
+    .filter(decl => {
+      if (!decl) return false
+      const colon = decl.indexOf(':')
+      if (colon <= 0) return false
+      return isSafeCssValue(decl.slice(colon + 1))
+    })
+  return kept.length > 0 ? kept.join(';') : undefined
+}
+
+// ============================================================================
+// URL sanitising
+// ============================================================================
+
+/**
+ * Keep a link URL only when its scheme cannot execute script.
+ *
+ * `javascript:` and `vbscript:` run on click, and `data:` can carry an HTML
+ * document, so a diagram would be able to script the embedding page. Relative
+ * and fragment URLs are fine, as are the ordinary document schemes.
+ *
+ * The comparison strips ASCII whitespace and control characters first, because
+ * browsers do the same when resolving a URL: `java\tscript:` is a live
+ * `javascript:` URL to a parser but not to a naive string compare.
+ */
+export function safeLinkUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined
+  const text = url.trim()
+  if (!text) return undefined
+
+  const collapsed = text.replace(/[\s\u0000-\u001f\u007f]/g, '').toLowerCase()
+  const scheme = collapsed.match(/^([a-z][a-z0-9+.-]*):/)?.[1]
+  if (!scheme) return text // relative, absolute path or fragment
+
+  return ['http', 'https', 'mailto', 'tel', 'ftp'].includes(scheme) ? text : undefined
+}
+
 /**
  * Escape special XML characters in text content.
  */

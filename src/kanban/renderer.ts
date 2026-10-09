@@ -7,7 +7,7 @@ import type {
 import type { DiagramColors } from '../theme.ts'
 import { svgOpenTag, buildStyleBlock } from '../theme.ts'
 import { TEXT_BASELINE_SHIFT } from '../styles.ts'
-import { escapeXml } from '../multiline-utils.ts'
+import { escapeXml, safeStyleString } from '../multiline-utils.ts'
 import { CHART_ACCENT_FALLBACK, getSeriesColor } from '../xychart/colors.ts'
 import { KANBAN_METRICS as K } from './layout.ts'
 
@@ -81,7 +81,8 @@ function renderColumn(column: PositionedKanbanColumn): string[] {
 
   const classes = ['kanban-column', `kanban-column-${column.colorIndex}`]
   if (column.class) classes.push(...column.class.split(/\s+/).map(c => escapeXml(c)))
-  const style = column.style ? ` style="${escapeXml(column.style)}"` : ''
+  const safe = safeStyleString(column.style)
+  const style = safe ? ` style="${escapeXml(safe)}"` : ''
 
   parts.push(
     `<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" ` +
@@ -142,7 +143,8 @@ function renderCard(card: PositionedKanbanCard): string[] {
 
   const classes = ['kanban-card', `kanban-card-${card.colorIndex}`]
   if (card.class) classes.push(...card.class.split(/\s+/).map(c => escapeXml(c)))
-  const style = card.style ? ` style="${escapeXml(card.style)}"` : ''
+  const safe = safeStyleString(card.style)
+  const style = safe ? ` style="${escapeXml(safe)}"` : ''
 
   const data = [
     `data-card="${escapeXml(card.id)}"`,

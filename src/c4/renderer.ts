@@ -7,7 +7,7 @@ import type {
 import type { DiagramColors } from '../theme.ts'
 import { svgOpenTag, buildStyleBlock } from '../theme.ts'
 import { TEXT_BASELINE_SHIFT } from '../styles.ts'
-import { escapeXml } from '../multiline-utils.ts'
+import { escapeXml, safeCssValue, safeLinkUrl } from '../multiline-utils.ts'
 import { CHART_ACCENT_FALLBACK, getSeriesColor } from '../xychart/colors.ts'
 import { C4_METRICS as C } from './layout.ts'
 
@@ -243,10 +243,13 @@ function renderShape(shape: PositionedC4Shape): string[] {
     cursor += C.descrLineHeight
   }
 
-  // A link wraps everything the shape drew, so the whole box is clickable
-  if (shape.link) {
+  // A link wraps everything the shape drew, so the whole box is clickable.
+  // Only non-executable schemes survive: a `javascript:` $link would otherwise
+  // run in the page embedding this SVG.
+  const href = safeLinkUrl(shape.link)
+  if (href) {
     return [
-      `<a href="${escapeXml(shape.link)}" target="_blank" rel="noopener noreferrer">`,
+      `<a href="${escapeXml(href)}" target="_blank" rel="noopener noreferrer">`,
       ...parts,
       '</a>',
     ]
@@ -274,9 +277,10 @@ function tooltip(shape: PositionedC4Shape): string {
 
 /** Draw one relationship: its line, its arrowheads and its label. */
 function renderEdge(edge: PositionedC4Rel): string[] {
-  const lineStyle = edge.style?.lineColor
-    ? ` style="stroke:${escapeXml(edge.style.lineColor)}"`
-    : ''
+  // UpdateRelStyle colours are author text reaching a CSS slot, so they go
+  // through the same whitelist as element styles.
+  const lineColor = safeCssValue(edge.style?.lineColor)
+  const lineStyle = lineColor ? ` style="stroke:${escapeXml(lineColor)}"` : ''
 
   const parts: string[] = [
     `<path d="${edge.path}" class="c4-edge"${lineStyle} ` +
@@ -292,9 +296,8 @@ function renderEdge(edge: PositionedC4Rel): string[] {
   if (edge.technLine) lines.push(edge.technLine)
   if (lines.length === 0) return parts
 
-  const textStyle = edge.style?.textColor
-    ? ` style="fill:${escapeXml(edge.style.textColor)}"`
-    : ''
+  const textColor = safeCssValue(edge.style?.textColor)
+  const textStyle = textColor ? ` style="fill:${escapeXml(textColor)}"` : ''
 
   // A chip behind the label, so the text stays readable over the line
   const blockHeight = lines.length * C.relLabelLineHeight
@@ -343,13 +346,20 @@ function arrowMarkers(): string {
 // Styles
 // ---------------------------------------------------------------------------
 
-/** Turn an element style into an inline style attribute, when it sets anything. */
+/**
+ * Turn an element style into an inline style attribute, when it sets anything.
+ *
+ * `$bgColor`/`$borderColor` come from `UpdateElementStyle` as free text and
+ * land in a CSS colour slot, so unsafe values are dropped rather than escaped.
+ */
 function inlineStyle(style: PositionedC4Shape['style']): string {
   if (!style) return ''
 
   const declarations: string[] = []
-  if (style.bgColor) declarations.push(`fill:${style.bgColor}`)
-  if (style.borderColor) declarations.push(`stroke:${style.borderColor}`)
+  const bgColor = safeCssValue(style.bgColor)
+  const borderColor = safeCssValue(style.borderColor)
+  if (bgColor) declarations.push(`fill:${bgColor}`)
+  if (borderColor) declarations.push(`stroke:${borderColor}`)
 
   return declarations.length > 0 ? ` style="${escapeXml(declarations.join(';'))}"` : ''
 }

@@ -85,9 +85,12 @@ describe('linkStyle – SVG integration', () => {
 
   it('escapes XSS injection in stroke value', () => {
     const svg = renderMermaidSVG('graph TD\n  A --> B\n  linkStyle 0 stroke:red" onmouseover="alert(1)')
-    // Quotes must be escaped — no attribute breakout
+    // No attribute breakout. The value carries a quote, so it is not a colour
+    // and the parser now drops it outright rather than escaping and keeping it
+    // — the edge falls back to its theme stroke.
     expect(svg).not.toContain('stroke="red" onmouseover')
-    expect(svg).toContain('stroke="red&quot; onmouseover=&quot;alert(1)"')
+    expect(svg).not.toContain('onmouseover')
+    expect(svg).toContain('stroke="var(--_line)"')
   })
 
   it('trailing semicolons do not leak into SVG attributes', () => {

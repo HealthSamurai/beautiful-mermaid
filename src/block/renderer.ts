@@ -2,7 +2,7 @@ import type { PositionedBlock, PositionedBlockDiagram } from './types.ts'
 import type { DiagramColors } from '../theme.ts'
 import { svgOpenTag, buildStyleBlock } from '../theme.ts'
 import { TEXT_BASELINE_SHIFT } from '../styles.ts'
-import { escapeXml } from '../multiline-utils.ts'
+import { escapeXml, safeStyleString } from '../multiline-utils.ts'
 import { CHART_ACCENT_FALLBACK, getSeriesColor } from '../xychart/colors.ts'
 
 // ============================================================================
@@ -119,7 +119,8 @@ function blockShape(block: PositionedBlock): string {
   const { x, y, width: w, height: h } = block
   const cls = `block-shape block-${block.shape} block-fill-${block.colorIndex}` +
     (block.classes.length > 0 ? ` ${block.classes.map(c => escapeXml(c)).join(' ')}` : '')
-  const style = block.style ? ` style="${escapeXml(block.style)}"` : ''
+  const safeStyle = safeStyleString(block.style)
+  const style = safeStyle ? ` style="${escapeXml(safeStyle)}"` : ''
   const data = `data-block="${escapeXml(block.id)}" data-shape="${block.shape}"`
   const title = block.label ? `<title>${escapeXml(block.label)}</title>` : ''
 
