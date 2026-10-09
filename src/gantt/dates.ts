@@ -175,19 +175,42 @@ export function isDurationLike(value: string): boolean {
 }
 
 /**
+ * Widest timestamp a gantt chart will represent: the end of year 9999.
+ *
+ * `new Date()` reaches further, but a saturated epoch is useless on a chart —
+ * the axis tick formatter produces "+275760-09" and the tick generator yields
+ * NaN. Clamping to a four-digit year keeps every label printable, so a diagram
+ * containing `999999999d` draws one very long bar with a readable axis instead
+ * of crashing or rendering NaN.
+ */
+const MAX_EPOCH = Date.UTC(9999, 11, 31)
+
+/** Narrowest timestamp, mirroring MAX_EPOCH at the start of year 0. */
+const MIN_EPOCH = Date.UTC(0, 0, 1)
+
+/** Clamp a timestamp into the range a gantt axis can label. */
+function clampEpoch(epoch: number): number {
+  if (Number.isNaN(epoch)) return 0
+  return Math.min(MAX_EPOCH, Math.max(MIN_EPOCH, epoch))
+}
+
+/**
  * Add a duration to an epoch timestamp.
  * Months and years advance the calendar field (so `1mo` from Jan 31 lands in
  * February), everything smaller is plain millisecond arithmetic.
+ *
+ * The result is clamped to the representable Date range, so an absurd amount
+ * yields a saturated timestamp rather than an Invalid Date downstream.
  */
 export function addDuration(from: number, duration: GanttDuration): number {
   const { amount, unit } = duration
   switch (unit) {
-    case 'ms': return from + amount
-    case 's': return from + amount * 1000
-    case 'm': return from + amount * 60_000
-    case 'h': return from + amount * 3_600_000
-    case 'd': return from + amount * DAY_MS
-    case 'w': return from + amount * 7 * DAY_MS
+    case 'ms': return clampEpoch(from + amount)
+    case 's': return clampEpoch(from + amount * 1000)
+    case 'm': return clampEpoch(from + amount * 60_000)
+    case 'h': return clampEpoch(from + amount * 3_600_000)
+    case 'd': return clampEpoch(from + amount * DAY_MS)
+    case 'w': return clampEpoch(from + amount * 7 * DAY_MS)
     case 'mo': return shiftMonths(from, amount)
     case 'y': return shiftMonths(from, amount * 12)
   }
@@ -197,12 +220,18 @@ export function addDuration(from: number, duration: GanttDuration): number {
 function shiftMonths(from: number, months: number): number {
   const d = new Date(from)
   const day = d.getUTCDate()
+  // Month arithmetic on a saturated Date throws, so an out-of-range shift is
+  // detected on the epoch value before the calendar is touched.
+  const whole = Math.round(months)
+  const approx = from + whole * 30.44 * DAY_MS
+  if (!Number.isFinite(approx) || approx >= MAX_EPOCH || approx <= MIN_EPOCH) return clampEpoch(approx)
+
   const target = new Date(from)
   target.setUTCDate(1)
-  target.setUTCMonth(target.getUTCMonth() + Math.round(months))
+  target.setUTCMonth(target.getUTCMonth() + whole)
   const daysInTarget = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
   target.setUTCDate(Math.min(day, daysInTarget))
-  return target.getTime()
+  return clampEpoch(target.getTime())
 }
 
 // ---------------------------------------------------------------------------

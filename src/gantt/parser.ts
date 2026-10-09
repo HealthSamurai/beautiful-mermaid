@@ -90,7 +90,9 @@ export function parseGanttDiagram(lines: string[]): GanttDiagram {
     task.section = current.title
     current.tasks.push(task)
     tasks.push(task)
-    byId.set(task.id, task)
+    // First binding wins, matching upstream: a later task reusing an id must
+    // not silently steal the `after`/`until` references aimed at the first.
+    if (!byId.has(task.id)) byId.set(task.id, task)
   }
 
   for (const raw of lines) {
@@ -156,13 +158,25 @@ export function parseGanttDiagram(lines: string[]): GanttDiagram {
       }
     }
 
-    // Task — everything up to the first ':' is the label
-    const colon = line.indexOf(':')
+    // `click <id> href "..."` / `click <id> call fn()` attach interactivity.
+    // We render a static SVG and have nothing to bind, but parsing the line as
+    // a TASK drew a bar labelled `click a1 href "https` on the chart, so it is
+    // recognised and skipped.
+    if (/^click\s+\S+/i.test(line)) continue
+
+    // Task — `label : metadata`.
+    //
+    // Upstream's lexer splits on the FIRST colon, but a label frequently
+    // contains a clock time ("Standup at 10:30 :a1, ..."), and splitting there
+    // produces a task named "Standup at 10" with id "30 standup" — a silently
+    // wrong chart. So the split is the LAST colon whose right-hand side still
+    // parses as task metadata, falling back to the first colon.
+    const colon = taskMetaColon(line, dateFormat)
     if (colon === -1) continue
 
     const label = line.slice(0, colon).trim()
     const meta = line.slice(colon + 1).trim()
-    if (!label) continue
+    if (!label || !meta) continue
 
     const parsed = parseTaskMeta(meta, dateFormat)
     const id = parsed.id ?? `task${++autoId}`
@@ -424,6 +438,54 @@ function splitTokens(value: string): string[] {
     .split(/[,\s]+/)
     .map(t => t.trim().toLowerCase())
     .filter(t => t.length > 0)
+}
+
+/**
+ * Find the colon that separates a task's label from its metadata.
+ *
+ * Gantt labels routinely contain a colon — a clock time ("Standup at 10:30"),
+ * a ratio, a namespaced name. Splitting on the first colon the way upstream's
+ * lexer does turns those into a task with a mangled label and a nonsense id,
+ * and because the result still renders, the author sees a wrong chart rather
+ * than an error.
+ *
+ * So candidates are tried from the right: the chosen colon is the last one
+ * whose right-hand side is recognisable task metadata (a date, duration, tag,
+ * dependency or progress value). A line with no metadata-looking tail falls
+ * back to the first colon, preserving the old behaviour for genuinely
+ * malformed input.
+ *
+ * @returns the index of the separating colon, or -1 when the line has none
+ */
+function taskMetaColon(line: string, dateFormat: string): number {
+  const first = line.indexOf(':')
+  if (first === -1) return -1
+
+  for (let i = line.lastIndexOf(':'); i >= first; i = line.lastIndexOf(':', i - 1)) {
+    if (looksLikeTaskMeta(line.slice(i + 1), dateFormat)) return i
+    if (i === 0) break
+  }
+  return first
+}
+
+/**
+ * True when a metadata tail carries at least one token gantt understands.
+ *
+ * A bare id alone does not count: "10:30 standup" would otherwise look like
+ * valid metadata and defeat the whole purpose of scanning from the right.
+ */
+function looksLikeTaskMeta(tail: string, dateFormat: string): boolean {
+  const parts = tail.split(',').map(p => p.trim()).filter(p => p.length > 0)
+  if (parts.length === 0) return false
+
+  return parts.some(part => {
+    const lower = part.toLowerCase()
+    if (TAGS.has(lower as GanttTaskTag)) return true
+    if (/^(after|until)\s+\S/i.test(part)) return true
+    if (/^\d+(?:\.\d+)?\s*%$/.test(part)) return true
+    if (isDateLike(part, dateFormat)) return true
+    return isDurationLike(part)
+  })
 }
 
 /** Remove a trailing `%% comment` from a line. */
