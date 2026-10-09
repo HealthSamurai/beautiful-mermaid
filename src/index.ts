@@ -110,6 +110,35 @@ import { parseAccessibility, withAccessibility } from './a11y/parser.ts'
  * Detect the diagram type from the mermaid source text.
  * Returns the type keyword used for routing to the correct pipeline.
  */
+/**
+ * Remove a trailing `%% comment` from a single line.
+ *
+ * `%%{` opens an init directive rather than a comment, and a `%%` inside
+ * quotes is literal text (a sankey CSV field, a label reading "50%% done"),
+ * so both are left alone.
+ */
+function stripTrailingComment(line: string): string {
+  let quote: string | undefined
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]!
+    if (quote) {
+      if (char === quote) quote = undefined
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '%' && line[i + 1] === '%') {
+      if (line[i + 2] === '{') return line // init directive, not a comment
+      return line.slice(0, i).trimEnd()
+    }
+  }
+
+  return line
+}
+
 function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' | 'requirement' | 'c4' {
   const firstLine = text.trim().split(/[\n;]/)[0]?.trim().toLowerCase() ?? ''
 
@@ -229,7 +258,17 @@ function renderDiagramBody(
   const transparent = options.transparent ?? false
   const diagramType = detectDiagramType(text)
 
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('%%'))
+  // Drop blank lines, whole-line comments and trailing `%% ...` comments.
+  //
+  // Upstream strips only whole-line comments centrally, but its sequence,
+  // journey and several other lexers additionally skip an inline `%%` run.
+  // Doing it here instead gives every line-based parser the same rule, rather
+  // than leaving "A->>B: hi %% note" to render the comment as part of the
+  // message in some diagram types and not others.
+  const lines = text
+    .split('\n')
+    .map(l => stripTrailingComment(l.trim()))
+    .filter(l => l.length > 0 && !l.startsWith('%%'))
 
   switch (diagramType) {
     case 'sequence': {

@@ -82,6 +82,12 @@ export function parseMindmapDiagram(text: string): MindmapDiagram {
       continue
     }
 
+    // `classDef` is flowchart syntax that authors reach for anyway. Upstream
+    // has no mindmap rule for it, and parsing it as a NODE made this throw
+    // "There can be only one root" — losing the whole diagram over a line
+    // that was only ever decoration. Skip it.
+    if (/^classDef\b/i.test(content)) continue
+
     const { nodeId, descr, shape } = parseNodeText(content)
     const node: MindmapNode = { nodeId, descr, shape, level: 0, children: [] }
 

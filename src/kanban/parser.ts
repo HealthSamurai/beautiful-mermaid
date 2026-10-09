@@ -102,6 +102,12 @@ export function parseKanbanDiagram(text: string): KanbanDiagram {
       continue
     }
 
+    // `classDef` is flowchart syntax, not kanban syntax, but it gets written
+    // here by analogy often enough to matter. Upstream's lexer has no rule for
+    // it either; treating it as a CARD would put a column named
+    // "classDef e fill" on the board, so skip the line instead.
+    if (/^classDef\b/i.test(content)) continue
+
     // ::icon(name) — attaches to the node declared above it
     const icon = content.match(/^::icon\(\s*(.+?)\s*\)$/i)
     if (icon) {
