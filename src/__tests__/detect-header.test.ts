@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { renderMermaidSVG } from '../index.ts'
+import { renderMermaidASCII } from '../ascii/index.ts'
 
 // ============================================================================
 // Diagram type detection
@@ -136,3 +137,42 @@ describe('versioned and suffixed headers', () => {
     expect(renderedType(renderMermaidSVG('TimeLine\n  2021 : E'))).toBe('timeline')
   })
 })
+
+describe('the SVG and ASCII entry points detect alike', () => {
+  // Both used to carry their own copy of the detector, so a fix to one left
+  // the other behind: a gantt chart under a comment rendered as SVG but was
+  // reported as a malformed flowchart in ASCII.
+  const PRECEDED: [string, string][] = [
+    ['a comment', '%% a leading note\n'],
+    ['frontmatter', '---\ntitle: T\n---\n'],
+  ]
+
+  for (const [name, prefix] of PRECEDED) {
+    for (const [type, source] of SOURCES.map(s => [s[0], s[1]] as const)) {
+      it(`agrees about ${type} behind ${name}`, () => {
+        const withPrefix = `${prefix}${source}`
+
+        // Whatever ASCII says, it must be the same verdict it gives for the
+        // bare source: either it renders both, or it refuses both with the
+        // same "not supported" message.
+        const bare = asciiVerdict(source)
+        expect(asciiVerdict(withPrefix)).toBe(bare)
+
+        // And the SVG side must render it regardless of the preamble.
+        expect(renderMermaidSVG(withPrefix)).toContain('<svg')
+      })
+    }
+  }
+})
+
+/** What the ASCII renderer does with a source, reduced to a comparable tag. */
+function asciiVerdict(source: string): string {
+  try {
+    renderMermaidASCII(source)
+    return 'renders'
+  } catch (error) {
+    const message = (error as Error).message
+    const unsupported = message.match(/ASCII rendering is not supported for (\w+)/)
+    return unsupported ? `unsupported:${unsupported[1]}` : `error:${message.slice(0, 40)}`
+  }
+}

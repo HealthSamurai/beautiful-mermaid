@@ -17,6 +17,8 @@
 // ============================================================================
 
 import { parseMermaid } from '../parser.ts'
+import { detectDiagramType } from '../detect.ts'
+import { parseFrontmatter } from '../frontmatter/parser.ts'
 import { convertToAsciiGraph } from './converter.ts'
 import { createMapping } from './grid.ts'
 import { drawGraph } from './draw.ts'
@@ -54,36 +56,6 @@ export interface AsciiRenderOptions {
   colorMode?: ColorMode | 'auto'
   /** Theme colors for ASCII output. Uses default theme if not provided. */
   theme?: Partial<AsciiTheme>
-}
-
-/**
- * Detect the diagram type from the mermaid source text.
- * Mirrors the detection logic in src/index.ts for the SVG renderer.
- */
-function detectDiagramType(text: string): 'flowchart' | 'sequence' | 'class' | 'er' | 'xychart' | 'gantt' | 'timeline' | 'pie' | 'journey' | 'quadrant' | 'mindmap' | 'sankey' | 'gitgraph' | 'block' | 'radar' | 'kanban' | 'treemap' | 'requirement' | 'c4' {
-  const firstLine = text.trim().split('\n')[0]?.trim().toLowerCase() ?? ''
-
-  if (/^xychart(-beta)?\b/.test(firstLine)) return 'xychart'
-  if (/^gantt\b/.test(firstLine)) return 'gantt'
-  if (/^timeline\b/.test(firstLine)) return 'timeline'
-  if (/^pie\b/.test(firstLine)) return 'pie'
-  if (/^journey\b/.test(firstLine)) return 'journey'
-  if (/^quadrantchart\b/.test(firstLine)) return 'quadrant'
-  if (/^mindmap\b/.test(firstLine)) return 'mindmap'
-  if (/^sankey(-beta)?\b/.test(firstLine)) return 'sankey'
-  if (/^gitgraph\b/.test(firstLine)) return 'gitgraph'
-  if (/^block(-beta)?\b/.test(firstLine)) return 'block'
-  if (/^radar(-beta)?\b/.test(firstLine)) return 'radar'
-  if (/^kanban\b/.test(firstLine)) return 'kanban'
-  if (/^treemap(-beta)?\b/.test(firstLine)) return 'treemap'
-  if (/^requirementdiagram\b/.test(firstLine)) return 'requirement'
-  if (/^c4(context|container|component|dynamic|deployment)\b/.test(firstLine)) return 'c4'
-  if (/^sequencediagram\s*$/.test(firstLine)) return 'sequence'
-  if (/^classdiagram\s*$/.test(firstLine)) return 'class'
-  if (/^erdiagram\s*$/.test(firstLine)) return 'er'
-
-  // Default: flowchart/state (handled by parseMermaid internally)
-  return 'flowchart'
 }
 
 /**
@@ -134,18 +106,24 @@ export function renderMermaidASCII(
 
   const diagramType = detectDiagramType(text)
 
+  // Frontmatter carries theming the ASCII output has no use for, but it still
+  // has to come off the source: the line-based parsers below read the header
+  // from the first line, and would otherwise report the `---` fence as a
+  // malformed one.
+  const source = parseFrontmatter(text).body
+
   switch (diagramType) {
     case 'xychart':
-      return renderXYChartAscii(text, config, colorMode, theme)
+      return renderXYChartAscii(source, config, colorMode, theme)
 
     case 'sequence':
-      return renderSequenceAscii(text, config, colorMode, theme)
+      return renderSequenceAscii(source, config, colorMode, theme)
 
     case 'class':
-      return renderClassAscii(text, config, colorMode, theme)
+      return renderClassAscii(source, config, colorMode, theme)
 
     case 'er':
-      return renderErAscii(text, config, colorMode, theme)
+      return renderErAscii(source, config, colorMode, theme)
 
     // These types are SVG-only: their value is proportional geometry (a time
     // axis, an angle, a score curve, a position in the unit square), which a
@@ -173,7 +151,7 @@ export function renderMermaidASCII(
     case 'flowchart':
     default: {
       // Flowchart + state diagram pipeline (original)
-      const parsed = parseMermaid(text)
+      const parsed = parseMermaid(source)
 
       // Normalize direction for grid layout.
       // BT is laid out as TD then flipped vertically after drawing.
