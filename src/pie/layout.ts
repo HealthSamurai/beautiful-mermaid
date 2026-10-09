@@ -2,7 +2,7 @@ import type {
   PieDiagram, PositionedLegendEntry, PositionedPie, PositionedSlice,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 
 // ============================================================================
 // Pie layout engine
@@ -65,7 +65,13 @@ export function layoutPie(diagram: PieDiagram, _options: RenderOptions = {}): Po
   const legendHeight = legendTexts.length * P.legendRowHeight
 
   const contentHeight = Math.max(diameter, legendHeight)
-  const width = P.padding * 2 + diameter + (legendWidth > 0 ? P.legendGap + legendWidth : 0)
+  const width = widthForTitle(
+    P.padding * 2 + diameter + (legendWidth > 0 ? P.legendGap + legendWidth : 0),
+    diagram.title,
+    P.titleFontSize,
+    P.titleFontWeight,
+    P.padding,
+  )
   const height = P.padding * 2 + titleHeight + contentHeight
 
   const cx = P.padding + P.radius

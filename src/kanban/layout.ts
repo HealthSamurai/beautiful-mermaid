@@ -6,7 +6,7 @@ import type {
   PositionedKanbanColumn,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 
 // ============================================================================
 // Kanban layout engine
@@ -146,7 +146,15 @@ export function layoutKanban(
   for (const column of columns) column.height = tallest
 
   const contentWidth = columns.length > 0 ? x - K.columnGap : K.padding
-  const width = Math.round(contentWidth + K.padding)
+  const width = Math.round(
+    widthForTitle(
+      contentWidth + K.padding,
+      diagram.title,
+      K.titleFontSize,
+      K.titleFontWeight,
+      K.padding,
+    ),
+  )
   const height = Math.round(top + tallest + K.padding)
 
   const chart: PositionedKanban = { width, height, columns }

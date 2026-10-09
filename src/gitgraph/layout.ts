@@ -3,7 +3,7 @@ import type {
   PositionedGitGraph, PositionedGitTag,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 
 // ============================================================================
 // Git graph layout engine
@@ -93,7 +93,13 @@ function layoutHorizontal(
 
   const slotCount = Math.max(1, diagram.commits.length)
   const laneRight = laneLeft + slotCount * G.commitStride
-  const width = laneRight + G.padding
+  const width = widthForTitle(
+    laneRight + G.padding,
+    diagram.title,
+    G.titleFontSize,
+    G.titleFontWeight,
+    G.padding,
+  )
   const height = top + Math.max(1, lanes.length) * G.laneStride + G.labelGap + G.padding
 
   const laneY = (name: string) => top + (laneIndex.get(name) ?? 0) * G.laneStride + G.laneStride / 2
@@ -164,7 +170,13 @@ function layoutVertical(
 
   const slotCount = Math.max(1, diagram.commits.length)
   const laneBottom = top + slotCount * G.commitStride
-  const width = laneLeft + Math.max(1, lanes.length) * G.laneStride + G.padding
+  const width = widthForTitle(
+    laneLeft + Math.max(1, lanes.length) * G.laneStride + G.padding,
+    diagram.title,
+    G.titleFontSize,
+    G.titleFontWeight,
+    G.padding,
+  )
   const height = laneBottom + G.padding
 
   const laneX = (name: string) => laneLeft + (laneIndex.get(name) ?? 0) * G.laneStride

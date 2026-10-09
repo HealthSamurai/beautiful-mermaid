@@ -16,6 +16,32 @@ export function estimateTextWidth(text: string, fontSize: number, fontWeight: nu
   return measureTextWidth(text, fontSize, fontWeight)
 }
 
+/**
+ * Widen a canvas so a centred diagram title fits inside it.
+ *
+ * Every diagram type centres its title on `width / 2`, so a title longer than
+ * the content silently bleeds past both edges of the viewBox. Layouts call
+ * this with the width their content needs; the result is the width the canvas
+ * must actually have. Returns `width` unchanged when there is no title.
+ *
+ * @param width - Canvas width the diagram content needs
+ * @param title - Title text, if the diagram has one
+ * @param fontSize - Title font size in px
+ * @param fontWeight - Title font weight
+ * @param padding - Horizontal breathing room kept on each side of the title
+ * @returns The width needed to contain both the content and the title
+ */
+export function widthForTitle(
+  width: number,
+  title: string | undefined,
+  fontSize: number,
+  fontWeight: number,
+  padding: number,
+): number {
+  if (!title) return width
+  return Math.max(width, estimateTextWidth(title, fontSize, fontWeight) + padding * 2)
+}
+
 /** Average character width in px for monospace fonts (uniform glyph width) */
 export function estimateMonoTextWidth(text: string, fontSize: number): number {
   // Monospace fonts have uniform character width — 0.6 of fontSize matches actual

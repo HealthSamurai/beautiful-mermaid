@@ -2,7 +2,7 @@ import type {
   Block, BlockDiagram, PositionedBlock, PositionedBlockDiagram, PositionedBlockEdge,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 
 // ============================================================================
 // Block diagram layout engine
@@ -70,7 +70,13 @@ export function layoutBlockDiagram(
   const blocks: PositionedBlock[] = []
   const bounds = placeGrid(diagram.blocks, diagram.columns, originX, originY, 0, blocks)
 
-  const width = Math.max(bounds.width + B.padding * 2, 200)
+  const width = widthForTitle(
+    Math.max(bounds.width + B.padding * 2, 200),
+    diagram.title,
+    B.titleFontSize,
+    B.titleFontWeight,
+    B.padding,
+  )
   const height = originY + bounds.height + B.padding
 
   const edges = routeEdges(diagram, blocks)

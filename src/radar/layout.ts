@@ -2,7 +2,7 @@ import type {
   PositionedRadar, PositionedRadarCurve, RadarDiagram, RadarLegendEntry, RadarRing, RadarSpoke,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 
 // ============================================================================
 // Radar chart layout engine
@@ -74,7 +74,13 @@ export function layoutRadar(diagram: RadarDiagram, _options: RenderOptions = {})
   const cx = R.padding + plotExtent
   const cy = R.padding + (hasTitle ? R.titleHeight : 0) + plotExtent
 
-  const width = cx + plotExtent + legendWidth + R.padding
+  const width = widthForTitle(
+    cx + plotExtent + legendWidth + R.padding,
+    diagram.title,
+    R.titleFontSize,
+    R.titleFontWeight,
+    R.padding,
+  )
   const height = cy + plotExtent + R.padding
 
   /** Angle of axis `i`, in radians, measured from twelve o'clock. */

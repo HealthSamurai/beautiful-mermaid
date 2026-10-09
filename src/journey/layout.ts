@@ -3,7 +3,7 @@ import type {
   PositionedJourneyTask, PositionedScoreLine,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 import { LINE_HEIGHT_RATIO } from '../text-metrics.ts'
 
 // ============================================================================
@@ -132,7 +132,13 @@ export function layoutJourney(diagram: JourneyDiagram, _options: RenderOptions =
   })
 
   const contentRight = Math.max(x - J.columnGap, left + J.columnWidth)
-  const width = contentRight + J.padding
+  const width = widthForTitle(
+    contentRight + J.padding,
+    diagram.title,
+    J.titleFontSize,
+    J.titleFontWeight,
+    J.padding,
+  )
   const height = plotBottom + J.labelGap + labelBlockHeight + peopleHeight + J.padding
 
   // Section bands span from the section row down to the plot bottom

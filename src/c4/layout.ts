@@ -12,7 +12,7 @@ import type {
   PositionedC4Shape,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 import { elkLayoutSync } from '../elk-instance.ts'
 
 // ============================================================================
@@ -229,7 +229,15 @@ export function layoutC4Diagram(
     })
   }
 
-  const width = Math.round(result.width ?? C.padding * 2)
+  const width = Math.round(
+    widthForTitle(
+      result.width ?? C.padding * 2,
+      diagram.title,
+      C.titleFontSize,
+      C.titleFontWeight,
+      C.padding,
+    ),
+  )
   const legend = buildLegend(shapes, Math.round((result.height ?? 0) + titleHeight))
   const legendHeight = legend.length > 0
     ? legend.length * C.legendRowHeight + C.legendGap

@@ -6,7 +6,7 @@ import type {
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
 import { compileClass } from './parser.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 
 // ============================================================================
 // Treemap layout engine
@@ -74,7 +74,13 @@ export function layoutTreemap(
   _options: RenderOptions = {},
 ): PositionedTreemap {
   const titleHeight = diagram.title ? T.titleHeight : 0
-  const width = T.width
+  const width = widthForTitle(
+    T.width,
+    diagram.title,
+    T.titleFontSize,
+    T.titleFontWeight,
+    T.padding,
+  )
   const height = T.height + titleHeight
 
   const cells: TreemapCell[] = []

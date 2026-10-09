@@ -3,7 +3,7 @@ import type {
   PositionedTimeline, PositionedTimelineSection,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 import { LINE_HEIGHT_RATIO } from '../text-metrics.ts'
 
 // ============================================================================
@@ -146,7 +146,13 @@ function layoutHorizontal(diagram: TimelineDiagram): PositionedTimeline {
   })
 
   const contentRight = Math.max(x - T.trackGap, T.padding + T.cardWidth)
-  const width = contentRight + T.padding
+  const width = widthForTitle(
+    contentRight + T.padding,
+    diagram.title,
+    T.titleFontSize,
+    T.titleFontWeight,
+    T.padding,
+  )
   const height = Math.max(maxEventsBottom - T.cardGap, eventsTop) + T.padding
 
   // Section bands span the full content height once it is known
@@ -264,7 +270,13 @@ function layoutVertical(diagram: TimelineDiagram): PositionedTimeline {
   })
 
   const contentBottom = Math.max(y - T.trackGap, top + T.periodHeight)
-  const width = Math.max(maxEventsRight, axisX) + T.padding
+  const width = widthForTitle(
+    Math.max(maxEventsRight, axisX) + T.padding,
+    diagram.title,
+    T.titleFontSize,
+    T.titleFontWeight,
+    T.padding,
+  )
   const height = contentBottom + T.padding
 
   // Section bands span the full content width once it is known

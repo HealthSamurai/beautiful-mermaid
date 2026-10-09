@@ -4,7 +4,7 @@ import type {
   PositionedMilestone,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 import {
   DAY_MS, addDuration, advanceTick, floorToTickUnit, formatGanttDate, parseTickInterval,
   startOfDay, startOfMonth, startOfQuarter, startOfWeekOn, startOfYear,
@@ -249,7 +249,13 @@ export function layoutGantt(diagram: GanttDiagram, _options: RenderOptions = {})
       : [0],
   )
 
-  const width = plotX + plotWidth + labelOverhang + G.padding
+  const width = widthForTitle(
+    plotX + plotWidth + labelOverhang + G.padding,
+    diagram.title,
+    G.titleFontSize,
+    G.titleFontWeight,
+    G.padding,
+  )
 
   // `topAxis` repeats the time axis on the far edge of the plot, so a long
   // chart stays readable without scrolling back to the header

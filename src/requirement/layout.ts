@@ -9,7 +9,7 @@ import type {
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
 import { compileStyles } from './parser.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 import { elkLayoutSync } from '../elk-instance.ts'
 
 // ============================================================================
@@ -162,7 +162,15 @@ export function layoutRequirementDiagram(
     })
   }
 
-  const width = Math.round(result.width ?? R.padding * 2)
+  const width = Math.round(
+    widthForTitle(
+      result.width ?? R.padding * 2,
+      diagram.title,
+      R.titleFontSize,
+      R.titleFontWeight,
+      R.padding,
+    ),
+  )
   const height = Math.round((result.height ?? R.padding * 2) + titleHeight)
 
   const chart: PositionedRequirementDiagram = { width, height, nodes, edges: positionedEdges }

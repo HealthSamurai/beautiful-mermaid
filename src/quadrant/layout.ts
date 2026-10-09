@@ -3,7 +3,7 @@ import type {
   PositionedQuadrantPoint, QuadrantDiagram,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, widthForTitle } from '../styles.ts'
 
 // ============================================================================
 // Quadrant chart layout engine
@@ -57,7 +57,13 @@ export function layoutQuadrant(
   const plotSize = Q.plotSize
 
   const bottomGutter = diagram.yAxis.start ? Q.axisGutter : 0
-  const width = plotX + plotSize + rightGutter + Q.padding
+  const width = widthForTitle(
+    plotX + plotSize + rightGutter + Q.padding,
+    diagram.title,
+    Q.titleFontSize,
+    Q.titleFontWeight,
+    Q.padding,
+  )
   const height = plotY + plotSize + bottomGutter + Q.padding
 
   const plot = { x: plotX, y: plotY, width: plotSize, height: plotSize }
