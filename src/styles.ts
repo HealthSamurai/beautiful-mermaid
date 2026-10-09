@@ -42,6 +42,54 @@ export function widthForTitle(
   return Math.max(width, estimateTextWidth(title, fontSize, fontWeight) + padding * 2)
 }
 
+/**
+ * Break text into lines that each fit within `maxWidth`.
+ *
+ * Greedy wrapping on whitespace, measured with the same estimateTextWidth()
+ * the layouts size their boxes with, so a line is kept only if it will
+ * actually be drawn narrow enough. A word wider than `maxWidth` on its own is
+ * emitted rather than dropped, since losing text is worse than overflowing.
+ *
+ * Embedded newlines are honoured as hard breaks, so a label that already
+ * carries its own line structure keeps it.
+ *
+ * @param text - The text to wrap
+ * @param maxWidth - Width budget for one line, in px
+ * @param fontSize - Font size the text will be drawn at
+ * @param fontWeight - Font weight the text will be drawn at
+ * @param maxLines - Cap on the number of lines; extra lines are dropped
+ * @returns The wrapped lines — always at least one, possibly empty, entry
+ */
+export function wrapText(
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  fontWeight: number,
+  maxLines?: number,
+): string[] {
+  const out: string[] = []
+
+  for (const paragraph of text.split('\n')) {
+    const words = paragraph.split(/\s+/).filter(word => word.length > 0)
+    let line = ''
+
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word
+      // `!line` keeps an over-wide word on its own line instead of dropping it
+      if (estimateTextWidth(candidate, fontSize, fontWeight) <= maxWidth || !line) {
+        line = candidate
+      } else {
+        out.push(line)
+        line = word
+      }
+    }
+    if (line) out.push(line)
+  }
+
+  if (out.length === 0) out.push('')
+  return maxLines === undefined ? out : out.slice(0, maxLines)
+}
+
 /** Average character width in px for monospace fonts (uniform glyph width) */
 export function estimateMonoTextWidth(text: string, fontSize: number): number {
   // Monospace fonts have uniform character width — 0.6 of fontSize matches actual

@@ -2,7 +2,7 @@ import type {
   MindmapDiagram, MindmapEdge, MindmapNode, PositionedMindmap, PositionedMindmapNode,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth } from '../styles.ts'
+import { estimateTextWidth, wrapText } from '../styles.ts'
 import { LINE_HEIGHT_RATIO } from '../text-metrics.ts'
 
 // ============================================================================
@@ -213,23 +213,7 @@ function edgePath(x1: number, y1: number, x2: number, y2: number): string {
 
 /** Wrap a label to the available box width, clipped to maxLines. */
 function wrap(text: string, maxWidth: number, fontSize: number, fontWeight: number): string[] {
-  const words = text.split(/\s+/).filter(w => w.length > 0)
-  const out: string[] = []
-  let line = ''
-
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word
-    if (estimateTextWidth(candidate, fontSize, fontWeight) <= maxWidth || !line) {
-      line = candidate
-    } else {
-      out.push(line)
-      line = word
-    }
-  }
-  if (line) out.push(line)
-  if (out.length === 0) out.push('')
-
-  return out.slice(0, M.maxLines)
+  return wrapText(text, maxWidth, fontSize, fontWeight, M.maxLines)
 }
 
 function round(n: number): number {

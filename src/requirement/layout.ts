@@ -9,7 +9,7 @@ import type {
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
 import { compileStyles } from './parser.ts'
-import { estimateTextWidth, widthForTitle } from '../styles.ts'
+import { estimateTextWidth, widthForTitle, wrapText } from '../styles.ts'
 import { elkLayoutSync } from '../elk-instance.ts'
 
 // ============================================================================
@@ -336,26 +336,7 @@ function round(value: number): number {
 
 /** Wrap text to a pixel width using the DOM-free metrics. */
 function wrap(text: string, maxWidth: number): string[] {
-  const words = text.split(/\s+/).filter(w => w.length > 0)
-  const out: string[] = []
-  let line = ''
-
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word
-    if (
-      estimateTextWidth(candidate, R.nameFontSize, R.nameFontWeight) <= maxWidth ||
-      !line
-    ) {
-      line = candidate
-    } else {
-      out.push(line)
-      line = word
-    }
-  }
-  if (line) out.push(line)
-  if (out.length === 0) out.push('')
-
-  return out.slice(0, R.maxNameLines)
+  return wrapText(text, maxWidth, R.nameFontSize, R.nameFontWeight, R.maxNameLines)
 }
 
 /** Geometry constants, exported so the renderer draws text where layout put it. */

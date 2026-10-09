@@ -2,7 +2,7 @@ import type {
   Block, BlockDiagram, PositionedBlock, PositionedBlockDiagram, PositionedBlockEdge,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth, widthForTitle } from '../styles.ts'
+import { estimateTextWidth, widthForTitle, wrapText } from '../styles.ts'
 
 // ============================================================================
 // Block diagram layout engine
@@ -335,22 +335,10 @@ function anchor(from: PositionedBlock, to: PositionedBlock): { x: number; y: num
  * a block label is usually a name that must stay readable.
  */
 function wrap(text: string, maxWidth: number): string[] {
-  const words = text.split(/\s+/).filter(w => w.length > 0)
-  const out: string[] = []
-  let line = ''
-
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word
-    if (estimateTextWidth(candidate, B.labelFontSize, B.labelFontWeight) <= maxWidth || !line) {
-      line = candidate
-    } else {
-      out.push(line)
-      line = word
-    }
-  }
-  if (line) out.push(line)
-
-  return out.slice(0, B.maxLines)
+  // An empty label contributes no lines here, so the caller draws no text at
+  // all rather than an empty one.
+  if (!text.trim()) return []
+  return wrapText(text, maxWidth, B.labelFontSize, B.labelFontWeight, B.maxLines)
 }
 
 /**

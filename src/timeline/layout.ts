@@ -3,7 +3,7 @@ import type {
   PositionedTimeline, PositionedTimelineSection,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth, widthForTitle } from '../styles.ts'
+import { widthForTitle, wrapText } from '../styles.ts'
 import { LINE_HEIGHT_RATIO } from '../text-metrics.ts'
 
 // ============================================================================
@@ -313,27 +313,13 @@ function layoutVertical(diagram: TimelineDiagram): PositionedTimeline {
  * on its own line rather than broken mid-word.
  */
 function wrapEvent(text: string): { lines: string[]; height: number } {
-  const maxWidth = T.cardWidth - T.cardPadX * 2
-  const words = text.split(/\s+/).filter(w => w.length > 0)
-
-  const lines: string[] = []
-  let line = ''
-
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word
-    if (estimateTextWidth(candidate, T.eventFontSize, T.eventFontWeight) <= maxWidth || !line) {
-      line = candidate
-    } else {
-      lines.push(line)
-      line = word
-    }
-  }
-  if (line) lines.push(line)
-  if (lines.length === 0) lines.push('')
-
-  const clipped = lines.slice(0, T.maxLines)
+  const lines = wrapText(
+    text,
+    T.cardWidth - T.cardPadX * 2,
+    T.eventFontSize,
+    T.eventFontWeight,
+    T.maxLines,
+  )
   const lineHeight = T.eventFontSize * LINE_HEIGHT_RATIO
-  const height = clipped.length * lineHeight + T.cardPadY * 2
-
-  return { lines: clipped, height }
+  return { lines, height: lines.length * lineHeight + T.cardPadY * 2 }
 }

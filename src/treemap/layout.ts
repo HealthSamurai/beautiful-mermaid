@@ -6,7 +6,7 @@ import type {
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
 import { compileClass } from './parser.ts'
-import { estimateTextWidth, widthForTitle } from '../styles.ts'
+import { estimateTextWidth, widthForTitle, wrapText } from '../styles.ts'
 
 // ============================================================================
 // Treemap layout engine
@@ -444,26 +444,7 @@ function group(value: number, digits = 0): string {
 
 /** Wrap text to a pixel width using the DOM-free metrics. */
 function wrap(text: string, maxWidth: number): string[] {
-  const words = text.split(/\s+/).filter(w => w.length > 0)
-  const out: string[] = []
-  let line = ''
-
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word
-    if (
-      estimateTextWidth(candidate, T.labelFontSize, T.labelFontWeight) <= maxWidth ||
-      !line
-    ) {
-      line = candidate
-    } else {
-      out.push(line)
-      line = word
-    }
-  }
-  if (line) out.push(line)
-  if (out.length === 0) out.push('')
-
-  return out
+  return wrapText(text, maxWidth, T.labelFontSize, T.labelFontWeight)
 }
 
 /** Truncate text with an ellipsis so it fits a pixel width. */

@@ -3,7 +3,7 @@ import type {
   PositionedJourneyTask, PositionedScoreLine,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth, widthForTitle } from '../styles.ts'
+import { widthForTitle, wrapText } from '../styles.ts'
 import { LINE_HEIGHT_RATIO } from '../text-metrics.ts'
 
 // ============================================================================
@@ -203,25 +203,5 @@ function buildScoreLines(
  * the parser produced from `<br>` tags.
  */
 function wrapLabel(text: string): string[] {
-  const maxWidth = J.columnWidth - 8
-  const out: string[] = []
-
-  for (const paragraph of text.split('\n')) {
-    const words = paragraph.split(/\s+/).filter(w => w.length > 0)
-    let line = ''
-
-    for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word
-      if (estimateTextWidth(candidate, J.taskFontSize, J.taskFontWeight) <= maxWidth || !line) {
-        line = candidate
-      } else {
-        out.push(line)
-        line = word
-      }
-    }
-    if (line) out.push(line)
-  }
-
-  if (out.length === 0) out.push('')
-  return out.slice(0, J.maxLines)
+  return wrapText(text, J.columnWidth - 8, J.taskFontSize, J.taskFontWeight, J.maxLines)
 }

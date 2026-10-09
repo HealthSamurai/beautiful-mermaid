@@ -12,7 +12,7 @@ import type {
   PositionedC4Shape,
 } from './types.ts'
 import type { RenderOptions } from '../types.ts'
-import { estimateTextWidth, widthForTitle } from '../styles.ts'
+import { estimateTextWidth, widthForTitle, wrapText } from '../styles.ts'
 import { elkLayoutSync } from '../elk-instance.ts'
 
 // ============================================================================
@@ -537,24 +537,9 @@ function wrap(
   fontSize: number,
   fontWeight: number,
 ): string[] {
+  // No text means no lines, so a missing description adds no height.
   if (!text) return []
-
-  const words = text.split(/\s+/).filter(w => w.length > 0)
-  const out: string[] = []
-  let line = ''
-
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word
-    if (estimateTextWidth(candidate, fontSize, fontWeight) <= maxWidth || !line) {
-      line = candidate
-    } else {
-      out.push(line)
-      line = word
-    }
-  }
-  if (line) out.push(line)
-
-  return out
+  return wrapText(text, maxWidth, fontSize, fontWeight)
 }
 
 /** Geometry constants, exported so the renderer draws text where layout put it. */
